@@ -45,6 +45,16 @@ public class SubjectApi {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/performance/subjects/{userId}")
+    public ResponseEntity<?> getSubjects(@PathVariable Integer userId) {
+        return ResponseEntity.ok(subjectService.getSubjectPerformance(userId));
+    }
+
+    @GetMapping("/performance/types/{userId}")
+    public ResponseEntity<?> getTypePerformance(@PathVariable Integer userId) {
+        return ResponseEntity.ok(subjectService.getTypePerformance(userId));
+    }
+
     @PostMapping
     public ResponseEntity<?> addSubject(@Valid @RequestBody SubjectRequest request) {
         subjectService.addSubject(request);

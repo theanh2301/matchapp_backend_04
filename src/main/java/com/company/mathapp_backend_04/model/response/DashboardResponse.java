@@ -12,5 +12,4 @@ import java.util.List;
 public class DashboardResponse {
     private UserStatResponse stats;
     private List<XpChartResponse> weeklyXp;
-
 }

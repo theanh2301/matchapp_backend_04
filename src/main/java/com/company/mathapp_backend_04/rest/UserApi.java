@@ -3,6 +3,7 @@ package com.company.mathapp_backend_04.rest;
 import com.company.mathapp_backend_04.entity.User;
 import com.company.mathapp_backend_04.model.request.LoginRequest;
 import com.company.mathapp_backend_04.model.request.RegisterRequest;
+import com.company.mathapp_backend_04.model.request.UpdateUserInfoRequest;
 import com.company.mathapp_backend_04.model.response.ApiResponse;
 import com.company.mathapp_backend_04.model.response.LoginResponse;
 import com.company.mathapp_backend_04.service.UserService;
@@ -10,10 +11,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
@@ -70,4 +68,23 @@ public class UserApi {
         }
     }
 
+    @GetMapping("/profile/{userId}")
+    public ResponseEntity<?> getProfile(@PathVariable Integer userId) {
+        return ResponseEntity.ok(userService.getProfile(userId));
+    }
+
+    @GetMapping("/profile/{userId}/info")
+    public ResponseEntity<?> getUserInfo(@PathVariable Integer userId) {
+        return ResponseEntity.ok(userService.getUserInfo(userId));
+    }
+
+    @PutMapping("/profile/{userId}/info")
+    public ResponseEntity<?> updateUserInfo(
+            @PathVariable Integer userId,
+            @RequestBody UpdateUserInfoRequest request
+    ) {
+        return ResponseEntity.ok(
+                userService.updateUserInfo(userId, request)
+        );
+    }
 }

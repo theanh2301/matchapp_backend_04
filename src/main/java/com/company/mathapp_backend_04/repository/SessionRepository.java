@@ -15,22 +15,54 @@ import java.util.Optional;
 @Repository
 public interface SessionRepository extends JpaRepository<Session, Integer> {
 
+    @Query("""
+        SELECT DATE(s.completedAt) as date, SUM(s.totalXp) as totalXp
+        FROM Session s
+        WHERE s.user.id = :userId
+          AND s.completedAt BETWEEN :startDate AND :endDate
+        GROUP BY DATE(s.completedAt)
+        ORDER BY DATE(s.completedAt)
+    """)
+    List<Object[]> getWeeklyXp(Integer userId,
+                               LocalDateTime startDate,
+                               LocalDateTime endDate);
 
-   /* @Query(value = """
-    SELECT 
-        DATE(earned_at) AS date,
-        SUM(xp) AS totalXp
-    FROM xp_history
-    WHERE user_id = :userId
-      AND earned_at BETWEEN :startDate AND :endDate
-    GROUP BY DATE(earned_at)
-    ORDER BY date
-""", nativeQuery = true)
-    List<XpByDateProjection> getXpByDateRange(
-            Integer userId,
-            LocalDateTime startDate,
-            LocalDateTime endDate
-    );*/
+
+    @Query("""
+SELECT 
+    s.subjectName,
+
+    SUM(
+        COALESCE(lc.bestFlashcardXp, 0) +
+        COALESCE(lc.bestMatchXp, 0) +
+        COALESCE(lc.bestQuizXp, 0)
+    ) AS earnedXp,
+
+    SUM(
+        COALESCE((
+            SELECT SUM(f.xpReward) FROM Flashcard f WHERE f.lesson.id = l.id
+        ),0)
+        +
+        COALESCE((
+            SELECT SUM(m.xpReward) FROM MatchCard m WHERE m.lesson.id = l.id
+        ),0)
+        +
+        COALESCE((
+            SELECT SUM(q.xpReward) FROM QuizQuestion q WHERE q.lesson.id = l.id
+        ),0)
+    ) AS maxXp
+
+FROM LessonCompletion lc
+JOIN lc.lesson l
+JOIN l.chapter c
+JOIN c.subject s
+
+WHERE lc.user.id = :userId
+AND s.grade.id = :gradeId
+
+GROUP BY s.subjectName
+""")
+    List<Object[]> getSubjectPerformance(Integer userId, Integer gradeId);
 
     Optional<Session> findByLessonId(Integer lessonId);
 

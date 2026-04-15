@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class XpChartResponse {
-    private String date;
-    private Integer totalXp;
+public class TypePerformanceResponse {
+    private String type;
+    private int accuracy;
 }

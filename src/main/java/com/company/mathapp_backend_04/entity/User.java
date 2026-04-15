@@ -6,6 +6,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Builder
 @AllArgsConstructor
@@ -29,8 +30,8 @@ public class User {
     String avatarUrl;
     Boolean isPremium;
     Role role;
-    LocalDate createdAt;
-    LocalDate updatedAt;
+    LocalDateTime createdAt;
+    LocalDateTime updatedAt;
 
     @ManyToOne
     @JoinColumn(name = "grade_id")
