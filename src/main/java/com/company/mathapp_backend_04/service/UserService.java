@@ -14,6 +14,7 @@ import com.company.mathapp_backend_04.model.response.UserInfoResponse;
 import com.company.mathapp_backend_04.repository.GradeRepository;
 import com.company.mathapp_backend_04.repository.UserRepository;
 import com.company.mathapp_backend_04.repository.UserStatRepository;
+import com.company.mathapp_backend_04.service.interface_service.DailyChallengeService;
 import com.company.mathapp_backend_04.service.interface_service.UserStatService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class UserService {
     private final JwtService jwtService;
     private final UserStatService userStatService;
     private final UserStatRepository userStatRepository;
+    private final DailyChallengeService dailyChallengeService;
 
     public User register(RegisterRequest registerRequest) {
         Grade grade = gradeRepository.findById(registerRequest.getGradeId())
@@ -102,6 +104,8 @@ public class UserService {
         }
 
         String token = jwtService.generateToken(user);
+        dailyChallengeService.generateDailyChallengeForUser(user.getId());
+        dailyChallengeService.completeLoginChallenge(user.getId());
 
         return new LoginResponse(
                 token,

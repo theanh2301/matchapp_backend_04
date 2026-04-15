@@ -23,6 +23,7 @@ public class DailyChallenges {
     String description;
     Integer xpReward;
     LocalDate date;
+    @Enumerated(EnumType.STRING)
     Source source;
     Integer TargetValue;
 }
