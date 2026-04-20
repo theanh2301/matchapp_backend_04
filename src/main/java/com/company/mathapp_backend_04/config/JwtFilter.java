@@ -1,24 +1,26 @@
 package com.company.mathapp_backend_04.config;
 
 import com.company.mathapp_backend_04.service.JwtService;
+import com.company.mathapp_backend_04.service.CustomUserDetailsService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.List;
 
 @Component
+@RequiredArgsConstructor
 public class JwtFilter extends OncePerRequestFilter {
 
-    @Autowired
-    private JwtService jwtService;
+    private final JwtService jwtService;
+    private final CustomUserDetailsService userDetailsService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -26,26 +28,40 @@ public class JwtFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        String header = request.getHeader("Authorization");
+        final String header = request.getHeader("Authorization");
 
-        if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
+        // ❌ Không có token → bỏ qua
+        if (header == null || !header.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
-            try {
-                String email = jwtService.extractEmail(token);
+        final String token = header.substring(7);
 
-                UsernamePasswordAuthenticationToken auth =
-                        new UsernamePasswordAuthenticationToken(
-                                email,
-                                null,
-                                List.of()
-                        );
+        try {
+            String email = jwtService.extractEmail(token);
 
-                SecurityContextHolder.getContext().setAuthentication(auth);
+            // ❗ chỉ set nếu chưa có authentication
+            if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-            } catch (Exception e) {
-                // token sai → không set auth
+                UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+
+                // 👉 nếu bạn có hàm validate thì dùng
+                //if (jwtService.isValid(token, userDetails)) {
+
+                    UsernamePasswordAuthenticationToken auth =
+                            new UsernamePasswordAuthenticationToken(
+                                    userDetails,
+                                    null,
+                                    userDetails.getAuthorities() // 🔥 QUAN TRỌNG
+                            );
+
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+
             }
+
+        } catch (Exception e) {
+            // token lỗi → bỏ qua
         }
 
         filterChain.doFilter(request, response);

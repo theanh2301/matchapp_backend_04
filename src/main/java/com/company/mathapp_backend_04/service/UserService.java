@@ -263,4 +263,11 @@ public class UserService {
                 user.getIsPremium()
         );
     }
+
+    public void resetPassword(int userId, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        user.setPassword(bCryptPasswordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
 }

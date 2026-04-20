@@ -29,6 +29,7 @@ public class User {
     String password;
     String avatarUrl;
     Boolean isPremium;
+    @Enumerated(EnumType.STRING)
     Role role;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
