@@ -12,4 +12,9 @@ public class AdminAuthController {
     public String loginPage() {
         return "admin/login";
     }
+
+    @GetMapping("/dashboard")
+    public String dashboard() {
+        return "admin/fragments/layout";
+    }
 }

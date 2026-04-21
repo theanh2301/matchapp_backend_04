@@ -3,6 +3,8 @@ package com.company.mathapp_backend_04.repository;
 import com.company.mathapp_backend_04.entity.Subject;
 import com.company.mathapp_backend_04.model.dto.SubjectOverviewDTO;
 import com.company.mathapp_backend_04.model.dto.SubjectProgressDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -123,4 +125,7 @@ public interface SubjectRepository extends JpaRepository<Subject, Integer> {
 
 """, nativeQuery = true)
     List<SubjectProgressDTO> getSubjectProgress(@Param("userId") Integer userId);
+
+    Page<Subject> findBySubjectNameContainingIgnoreCase(String keyword, Pageable pageable);
+
 }

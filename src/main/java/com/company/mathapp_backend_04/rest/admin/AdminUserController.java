@@ -30,23 +30,24 @@ public class AdminUserController {
 
     @GetMapping
     public String list(Model model,
-                       @RequestParam(required = false) String keyword,
+                       @RequestParam(defaultValue = "") String keyword,
                        @RequestParam(defaultValue = "0") int page,
-                       @RequestParam(defaultValue = "10") int size) { // Giới hạn 10 record 1 trang
+                       @RequestParam(defaultValue = "10") int size) {
 
-        // Sắp xếp theo ID giảm dần (mới nhất lên đầu)
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
 
+        String safeKeyword = keyword.trim();
+
         Page<User> userPage;
-        if (keyword == null || keyword.trim().isEmpty()) {
+        if (safeKeyword.isEmpty()) {
             userPage = userService.getAll(null, pageable);
         } else {
-            userPage = userService.getAll(keyword.trim(), pageable);
+            userPage = userService.getAll(safeKeyword, pageable);
         }
 
-        // Truyền đối tượng Page ra View. Lúc này 'users' không còn là ArrayList nữa mà là PageImpl
+        model.addAttribute("keyword", safeKeyword);
         model.addAttribute("users", userPage);
-        model.addAttribute("keyword", keyword);
+        model.addAttribute("activeMenu", "users"); // Đánh dấu sáng menu bên trái
 
         return "users/user-list";
     }
@@ -90,7 +91,6 @@ public class AdminUserController {
         } catch (Exception e) {
             model.addAttribute("error", e.getMessage());
             model.addAttribute("user", user);
-            // PHẢI LOAD LẠI GRADES KHI CÓ LỖI
             model.addAttribute("grades", gradeService.getAll());
             return "users/user-form";
         }

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="sidebar(activeMenu)" class="d-flex flex-column flex-shrink-0 p-3 text-white bg-dark" style="width: 280px; min-height: 100vh; position: sticky; top: 0;">
+  <a href="/admin" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-decoration-none">
+    <i class="bi bi-mortarboard-fill fs-3 me-2"></i>
+    <span class="fs-4 fw-bold">Admin Panel</span>
+  </a>
+  <hr>
+  <ul class="nav nav-pills flex-column mb-auto gap-2">
+    <li class="nav-item">
+      <a th:href="@{/admin/users}" class="nav-link text-white"
+         th:classappend="${activeMenu == 'users' ? 'active' : ''}">
+        <i class="bi bi-people-fill me-2"></i> Users
+      </a>
+    </li>
+    <li>
+      <a th:href="@{/admin/subjects}" class="nav-link text-white"
+         th:classappend="${activeMenu == 'subjects' ? 'active' : ''}">
+        <i class="bi bi-book-half me-2"></i> Subjects
+      </a>
+    </li>
+  </ul>
+
+  <hr>
+  <div class="dropdown">
+    <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">
+      <img src="https://ui-avatars.com/api/?name=Admin" alt="" width="32" height="32" class="rounded-circle me-2">
+      <strong>Admin</strong>
+    </a>
+    <ul class="dropdown-menu dropdown-menu-dark text-small shadow" aria-labelledby="dropdownUser1">
+      <li><a class="dropdown-item" href="#">Profile</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="#">Sign out</a></li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>
