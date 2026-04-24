@@ -10,9 +10,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class AdminSubjectService {
+
     private final SubjectRepository subjectRepository;
     private final GradeRepository gradeRepository;
 
@@ -24,19 +26,39 @@ public class AdminSubjectService {
     }
 
     public Subject getById(int id) {
-        return subjectRepository.findById(id).orElseThrow(() -> new RuntimeException("Subject not found"));
+        return subjectRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Subject not found with id = " + id));
     }
 
     @Transactional
     public void save(Subject subject, Integer gradeId) {
+
         Grade grade = gradeRepository.findById(gradeId)
                 .orElseThrow(() -> new RuntimeException("Grade not found"));
-        subject.setGrade(grade);
-        subjectRepository.save(subject);
+
+        if (subject.getId() != null) {
+            Subject existing = getById(subject.getId());
+
+            existing.setSubjectName(subject.getSubjectName());
+            existing.setIcon(subject.getIcon());
+            existing.setGrade(grade);
+
+            subjectRepository.save(existing);
+
+        } else {
+            subject.setGrade(grade);
+            subjectRepository.save(subject);
+        }
     }
 
     @Transactional
     public void delete(int id) {
         subjectRepository.deleteById(id);
+    }
+
+    @Transactional
+    public void deleteBulk(List<Integer> ids) {
+        if (ids == null || ids.isEmpty()) return;
+        subjectRepository.deleteAllById(ids);
     }
 }

@@ -3,6 +3,8 @@ package com.company.mathapp_backend_04.repository;
 import com.company.mathapp_backend_04.entity.Chapter;
 import com.company.mathapp_backend_04.entity.Subject;
 import com.company.mathapp_backend_04.model.dto.ChapterOverviewDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -66,4 +68,7 @@ public interface ChapterRepository extends JpaRepository<Chapter, Integer> {
             @Param("userId") Integer userId,
             @Param("subjectId") Integer subjectId
     );
+
+    Page<Chapter> findByChapterNameContainingIgnoreCase(String keyword, Pageable pageable);
+
 }

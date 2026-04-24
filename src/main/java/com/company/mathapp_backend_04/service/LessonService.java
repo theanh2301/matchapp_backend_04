@@ -84,7 +84,7 @@ public class LessonService {
         lessonRepository.save(lesson);
     }
 
-   /* public void deleteLesson(Integer id) {
+    /*public void deleteLesson(Integer id) {
 
         if (!lessonRepository.existsById(id)) {
             throw new NotFoundException("Lesson not found");

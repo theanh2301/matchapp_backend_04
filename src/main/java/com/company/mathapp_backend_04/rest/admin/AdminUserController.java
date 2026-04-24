@@ -1,6 +1,7 @@
 package com.company.mathapp_backend_04.rest.admin;
 
 import com.company.mathapp_backend_04.entity.User;
+import com.company.mathapp_backend_04.model.response.ImportResult;
 import com.company.mathapp_backend_04.service.GradeService;
 import com.company.mathapp_backend_04.service.admin.AdminUserService;
 import com.company.mathapp_backend_04.service.admin.ExcelUserService;
@@ -32,7 +33,7 @@ public class AdminUserController {
     public String list(Model model,
                        @RequestParam(defaultValue = "") String keyword,
                        @RequestParam(defaultValue = "0") int page,
-                       @RequestParam(defaultValue = "10") int size) {
+                       @RequestParam(defaultValue = "30") int size) {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
 
@@ -45,54 +46,33 @@ public class AdminUserController {
             userPage = userService.getAll(safeKeyword, pageable);
         }
 
+        model.addAttribute("grades", gradeService.getAll());
         model.addAttribute("keyword", safeKeyword);
         model.addAttribute("users", userPage);
-        model.addAttribute("activeMenu", "users"); // Đánh dấu sáng menu bên trái
+        model.addAttribute("activeMenu", "users");
 
-        return "users/user-list";
+        return "pages/user-list";
     }
 
-    @GetMapping("/create")
-    public String createForm(Model model) {
-        model.addAttribute("user", new User());
-        model.addAttribute("grades", gradeService.getAll());
-        return "users/user-form";
-    }
-
-    @PostMapping("/create")
-    public String create(@ModelAttribute User user,
-                         @RequestParam("gradeId") Integer gradeId,
-                         Model model) {
+    @PostMapping("/save")
+    public String save(@ModelAttribute User user,
+                       @RequestParam Integer gradeId,
+                       Model model) {
         try {
-            userService.create(user, gradeId);
+            if (user.getId() == null) {
+                userService.create(user, gradeId);
+            } else {
+                userService.update(user, gradeId);
+            }
             return "redirect:/admin/users";
+
         } catch (Exception e) {
             model.addAttribute("error", e.getMessage());
-            // PHẢI LOAD LẠI GRADES KHI CÓ LỖI
             model.addAttribute("grades", gradeService.getAll());
-            return "users/user-form";
-        }
-    }
+            model.addAttribute("users", userService.getAll(null,
+                    PageRequest.of(0, 30)));
 
-    @GetMapping("/edit/{id}")
-    public String edit(@PathVariable int id, Model model) {
-        model.addAttribute("user", userService.getById(id));
-        model.addAttribute("grades", gradeService.getAll());
-        return "users/user-form";
-    }
-
-    @PostMapping("/edit")
-    public String update(@ModelAttribute User user,
-                         @RequestParam(value = "gradeId", required = false) Integer gradeId,
-                         Model model) {
-        try {
-            userService.update(user, gradeId);
-            return "redirect:/admin/users";
-        } catch (Exception e) {
-            model.addAttribute("error", e.getMessage());
-            model.addAttribute("user", user);
-            model.addAttribute("grades", gradeService.getAll());
-            return "users/user-form";
+            return "pages/user-list"; // quay lại modal page
         }
     }
 
@@ -102,11 +82,18 @@ public class AdminUserController {
         return "redirect:/admin/users";
     }
 
-    @PostMapping("/import")
-    public String importExcel(@RequestParam("file") MultipartFile file) {
-        excelUserService.importExcel(file);
+    /*@PostMapping("/import")
+    public String importExcel(@RequestParam("file") MultipartFile file, Model model) {
+
+        ImportResult result = excelUserService.importExcel(file);
+
+        model.addAttribute("message",
+                "Import thành công " + result.getSuccess() + "/" + result.getTotal());
+
+        model.addAttribute("errorFile", result.getErrorFilePath());
+
         return "redirect:/admin/users";
-    }
+    }*/
 
     @GetMapping("/export")
     public ResponseEntity<InputStreamResource> exportExcel() {

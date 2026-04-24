@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Question Management</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body>
+
+<div class="container mt-4">
+
+  <!-- HEADER -->
+  <div class="d-flex justify-content-between mb-3">
+    <h3>Question Management</h3>
+
+    <div>
+      <button id="btnBulkDelete" class="btn btn-danger d-none" onclick="submitBulkDelete()">
+        Delete Selected
+      </button>
+
+      <a href="/admin/questions/export" class="btn btn-outline-secondary">Export</a>
+
+      <button class="btn btn-primary" onclick="openCreateModal()">Create Question</button>
+    </div>
+  </div>
+
+  <!-- SEARCH + IMPORT -->
+  <div class="card mb-3">
+    <div class="card-body d-flex justify-content-between">
+
+      <form method="get" th:action="@{/admin/questions}" class="d-flex">
+        <div class="input-group">
+          <input type="text" name="keyword" th:value="${keyword}" class="form-control" placeholder="Search...">
+          <button class="btn btn-primary">Search</button>
+        </div>
+      </form>
+
+      <form action="/admin/questions/import" method="post" enctype="multipart/form-data">
+        <input type="file" name="file" required>
+        <button class="btn btn-success">Import</button>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <form id="bulkForm" action="/admin/questions/bulk-delete" method="post">
+    <table class="table table-bordered">
+
+      <thead>
+      <tr>
+        <th><input type="checkbox" id="selectAll"></th>
+        <th>ID</th>
+        <th>Question</th>
+        <th>Correct Answer</th>
+        <th>Lesson</th>
+        <th>XP</th>
+        <th>Action</th>
+      </tr>
+      </thead>
+
+      <tbody>
+      <tr th:each="q : ${questions.content}">
+        <td><input type="checkbox" name="ids" th:value="${q.id}" class="row-checkbox"></td>
+
+        <td th:text="${q.id}"></td>
+        <td th:text="${q.content}"></td>
+
+        <td>
+          <span th:each="a : ${q.answers}" th:if="${a.isCorrect}" th:text="${a.content}"></span>
+        </td>
+
+        <td th:text="${q.lesson.lessonName}"></td>
+        <td th:text="${q.xpReward}"></td>
+
+        <td>
+          <button class="btn btn-sm btn-primary"
+                  th:attr="onclick=|openEditModal(${q.id}, '${#strings.escapeJavaScript(q.content)}', ${q.lesson.id}, ${q.xpReward})|">
+            Edit
+          </button>
+
+          <a th:href="@{/admin/questions/delete/{id}(id=${q.id})}"
+             class="btn btn-sm btn-danger"
+             onclick="return confirm('Delete?')">Delete</a>
+        </td>
+      </tr>
+      </tbody>
+
+    </table>
+  </form>
+
+  <!-- PAGINATION -->
+  <nav th:if="${questions.totalPages > 1}">
+    <ul class="pagination">
+      <li class="page-item" th:classappend="${questions.first}? 'disabled'">
+        <a class="page-link" th:href="@{/admin/questions(page=${questions.number - 1}, keyword=${keyword})}">Prev</a>
+      </li>
+
+      <li class="page-item"
+          th:each="i : ${#numbers.sequence(0, questions.totalPages - 1)}"
+          th:classappend="${questions.number == i}? 'active'">
+        <a class="page-link"
+           th:href="@{/admin/questions(page=${i}, keyword=${keyword})}"
+           th:text="${i+1}"></a>
+      </li>
+
+      <li class="page-item" th:classappend="${questions.last}? 'disabled'">
+        <a class="page-link"
+           th:href="@{/admin/questions(page=${questions.number + 1}, keyword=${keyword})}">Next</a>
+      </li>
+    </ul>
+  </nav>
+
+</div>
+
+<!-- MODAL -->
+<div class="modal fade" id="questionModal">
+  <div class="modal-dialog">
+    <div class="modal-content">
+
+      <form action="/admin/questions/save" method="post">
+
+        <div class="modal-header">
+          <h5 id="modalTitle">Create Question</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+
+        <div class="modal-body">
+
+          <input type="hidden" name="id" id="questionId">
+
+          <label>Question *</label>
+          <input name="content" id="content" class="form-control mb-2" required>
+
+          <label>XP *</label>
+          <input name="xpReward" id="xpReward" type="number" class="form-control mb-2" required>
+
+          <label>Lesson *</label>
+          <select name="lessonId" id="lessonId" class="form-control mb-3" required>
+            <option th:each="l : ${lessons}"
+                    th:value="${l.id}"
+                    th:text="${l.lessonName}">
+            </option>
+          </select>
+
+          <!-- ANSWERS -->
+          <label>Answers *</label>
+
+          <div th:each="i : ${#numbers.sequence(0,3)}" class="mb-2">
+            <div class="input-group">
+              <span class="input-group-text">
+                <input type="radio" name="correctIndex" th:value="${i}" required>
+              </span>
+              <input type="text"
+                     class="form-control"
+                     th:attr="name=${'answers[' + i + '].content'}"
+                     required>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary">Save</button>
+        </div>
+
+      </form>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+  const modal = new bootstrap.Modal(document.getElementById('questionModal'));
+
+  function openCreateModal() {
+    document.getElementById('modalTitle').innerText = 'Create Question';
+
+    document.getElementById('questionId').value = '';
+    document.getElementById('content').value = '';
+    document.getElementById('xpReward').value = '';
+
+    modal.show();
+  }
+
+  function openEditModal(id, content, lessonId, xp) {
+    document.getElementById('modalTitle').innerText = 'Edit Question';
+
+    document.getElementById('questionId').value = id;
+    document.getElementById('content').value = content;
+    document.getElementById('lessonId').value = lessonId;
+    document.getElementById('xpReward').value = xp;
+
+    modal.show();
+  }
+
+  const selectAll = document.getElementById('selectAll');
+  const checkboxes = document.querySelectorAll('.row-checkbox');
+  const btn = document.getElementById('btnBulkDelete');
+
+  function updateBtn() {
+    const checked = document.querySelectorAll('.row-checkbox:checked').length;
+    btn.classList.toggle('d-none', checked === 0);
+  }
+
+  selectAll?.addEventListener('change', function () {
+    checkboxes.forEach(cb => cb.checked = this.checked);
+    updateBtn();
+  });
+
+  checkboxes.forEach(cb => cb.addEventListener('change', updateBtn));
+
+  function submitBulkDelete() {
+    if(confirm("Delete selected?")) {
+      document.getElementById('bulkForm').submit();
+    }
+  }
+</script>
+
+</body>
+</html>

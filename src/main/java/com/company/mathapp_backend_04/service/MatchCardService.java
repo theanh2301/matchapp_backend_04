@@ -6,15 +6,22 @@ import com.company.mathapp_backend_04.exception.BadRequestException;
 import com.company.mathapp_backend_04.exception.ConflictException;
 import com.company.mathapp_backend_04.exception.NotFoundException;
 import com.company.mathapp_backend_04.model.request.MatchCardPairRequest;
+import com.company.mathapp_backend_04.model.response.MatchCardPairResponse;
 import com.company.mathapp_backend_04.model.response.MatchCardResponse;
 import com.company.mathapp_backend_04.repository.LessonRepository;
 import com.company.mathapp_backend_04.repository.MatchCardRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +38,32 @@ public class MatchCardService {
                 matchCard.getContent(),
                 matchCard.getXpReward()
         )).toList();
+    }
+
+    public List<MatchCardPairResponse> getMatchCardPair(Integer lessonId) {
+
+        List<MatchCard> cards = matchCardRepository.findByLessonId(lessonId);
+
+        return cards.stream()
+                .collect(Collectors.groupingBy(MatchCard::getPairId))
+                .entrySet()
+                .stream()
+                .map(entry -> {
+                    List<MatchCard> pairCards = entry.getValue();
+
+                    MatchCard c1 = pairCards.get(0);
+                    MatchCard c2 = pairCards.size() > 1 ? pairCards.get(1) : null;
+
+                    return new MatchCardPairResponse(
+                            entry.getKey(),
+                            c1.getContent(),
+                            c2 != null ? c2.getContent() : null,
+                            c1.getXpReward(),
+                            lessonId,
+                            c1.getLesson().getLessonName()
+                    );
+                })
+                .toList();
     }
 
     @Transactional
@@ -148,4 +181,56 @@ public class MatchCardService {
 
         matchCardRepository.deleteAll(cards);
     }
+
+    public Page<MatchCardPairResponse> getAllCards(String keyword, Pageable pageable) {
+
+        Page<MatchCard> page;
+
+        if (keyword == null || keyword.isBlank()) {
+            page = matchCardRepository.findAll(pageable);
+        } else {
+            page = matchCardRepository
+                    .findByContentContainingIgnoreCase(keyword, pageable);
+        }
+
+        Map<Integer, List<MatchCard>> grouped = page.getContent().stream()
+                .collect(Collectors.groupingBy(MatchCard::getPairId));
+
+        List<MatchCardPairResponse> result = grouped.values().stream()
+                .filter(list -> list.size() == 2)
+                .map(list -> {
+                    MatchCard c1 = list.get(0);
+                    MatchCard c2 = list.get(1);
+
+                    return new MatchCardPairResponse(
+                            c1.getPairId(),
+                            c1.getContent(),
+                            c2.getContent(),
+                            c1.getXpReward(),
+                            c1.getLesson().getId(),
+                            c1.getLesson().getLessonName()
+                    );
+                })
+                .toList();
+
+        return new PageImpl<>(result, pageable, result.size());
+    }
+
+    @Transactional
+    public void deleteMultiple(List<Integer> pairIds, Integer lessonId) {
+
+        Lesson lesson = lessonRepository.findById(lessonId)
+                .orElseThrow(() -> new NotFoundException("Lesson not found"));
+
+        for (Integer pairId : pairIds) {
+
+            List<MatchCard> cards =
+                    matchCardRepository.findByPairIdAndLesson(pairId, lesson);
+
+            if (cards.size() == 2) {
+                matchCardRepository.deleteAll(cards);
+            }
+        }
+    }
+
 }

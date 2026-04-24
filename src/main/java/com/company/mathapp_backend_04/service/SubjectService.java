@@ -52,6 +52,10 @@ public class SubjectService {
                 .toList();
     }
 
+    public List<Subject> getAll() {
+        return subjectRepository.findAll();
+    }
+
     public List<SubjectProgressDTO> getSubjectProgress(Integer userId) {
         return subjectRepository.getSubjectProgress(userId);
     }

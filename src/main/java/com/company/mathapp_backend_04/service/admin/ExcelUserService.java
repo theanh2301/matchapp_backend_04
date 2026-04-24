@@ -1,52 +1,38 @@
 package com.company.mathapp_backend_04.service.admin;
 
-import com.company.mathapp_backend_04.entity.Grade;
 import com.company.mathapp_backend_04.entity.User;
-import com.company.mathapp_backend_04.model.enums.Role;
+import com.company.mathapp_backend_04.model.response.ImportResult;
 import com.company.mathapp_backend_04.repository.GradeRepository;
 import com.company.mathapp_backend_04.repository.UserRepository;
-import com.company.mathapp_backend_04.service.ExcelProcessService;
+import com.company.mathapp_backend_04.service.excel.ExcelUserProcessService;
 import com.company.mathapp_backend_04.service.interface_service.UserStatService;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.Iterator;
 
 @Service
 @RequiredArgsConstructor
 public class ExcelUserService {
 
     private final UserRepository userRepository;
-    private final GradeRepository gradeRepository;
-    private final BCryptPasswordEncoder bCryptPasswordEncoder = new BCryptPasswordEncoder();
-    private final UserStatService userStatService;
-    private final ExcelProcessService excelProcessService;
+    private final ExcelUserProcessService excelUserProcessService;
 
 
-    public void importExcel(MultipartFile file) {
+    /*public ImportResult importExcel(MultipartFile file) {
         try {
-            // Đọc InputStream của file trước khi request kết thúc
-            InputStream fileInputStream = file.getInputStream();
-
-            // Chuyển việc xử lý nặng nhọc cho Service chạy ngầm
-            excelProcessService.processImportAsync(fileInputStream);
-
-            // Hàm này sẽ trả về ngay lập tức (không chờ quá trình import kết thúc)
+            InputStream is = file.getInputStream();
+            return excelUserProcessService.processImport(is);
         } catch (Exception e) {
-            throw new RuntimeException("Không thể nhận file import: " + e.getMessage(), e);
+            throw new RuntimeException("Import failed: " + e.getMessage());
         }
-    }
+    }*/
 
     public ByteArrayInputStream exportExcel() {
         try (Workbook workbook = new XSSFWorkbook()) {
@@ -75,7 +61,7 @@ public class ExcelUserService {
                 row.createCell(2).setCellValue(u.getStatus() != null ? u.getStatus() : "");
                 row.createCell(3).setCellValue(u.getEmail());
                 row.createCell(4).setCellValue(u.getPhone() != null ? u.getPhone() : "");
-                row.createCell(5).setCellValue(""); // Để trống password khi export bảo mật
+                row.createCell(5).setCellValue("");
                 row.createCell(6).setCellValue(u.getAvatarUrl() != null ? u.getAvatarUrl() : "");
                 row.createCell(7).setCellValue(u.getIsPremium() != null && u.getIsPremium());
                 row.createCell(8).setCellValue(u.getRole().name());

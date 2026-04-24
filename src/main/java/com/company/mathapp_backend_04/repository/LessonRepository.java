@@ -4,6 +4,8 @@ import com.company.mathapp_backend_04.entity.Chapter;
 import com.company.mathapp_backend_04.entity.Lesson;
 import com.company.mathapp_backend_04.model.dto.LessonOverviewDTO;
 import com.company.mathapp_backend_04.model.dto.SuggestedLessonDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -21,6 +23,8 @@ public interface LessonRepository extends JpaRepository<Lesson, Integer> {
     Optional<Lesson> findByLessonNameAndChapter(String lessonName, Chapter chapter);
 
     boolean existsByLessonNameAndChapterAndIdNot(String lessonName, Chapter chapter, Integer id);
+
+    Page<Lesson> findByLessonNameContainingIgnoreCase(String keyword, Pageable pageable);
 
     @Query(value = """
     SELECT 

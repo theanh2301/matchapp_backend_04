@@ -13,6 +13,8 @@ import com.company.mathapp_backend_04.repository.LessonRepository;
 import com.company.mathapp_backend_04.repository.SubjectRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -34,6 +36,13 @@ public class ChapterService {
             c.getChapterName(),
             c.getDescription()
         )).toList();
+    }
+
+    public Page<Chapter> getAll(String keyword, Pageable pageable) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return chapterRepository.findAll(pageable);
+        }
+        return chapterRepository.findByChapterNameContainingIgnoreCase(keyword, pageable);
     }
 
     public void addChapter(ChapterRequest chapterRequest) {

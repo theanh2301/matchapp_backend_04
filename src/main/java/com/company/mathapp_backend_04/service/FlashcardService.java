@@ -9,6 +9,10 @@ import com.company.mathapp_backend_04.model.response.FlashcardResponse;
 import com.company.mathapp_backend_04.repository.FlashcardRepository;
 import com.company.mathapp_backend_04.repository.LessonRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -32,6 +36,17 @@ public class FlashcardService {
                 fl.getXpReward()
         )).toList();
     }
+
+    public Page<Flashcard> getAll(String keyword, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+
+        if (keyword != null && !keyword.isEmpty()) {
+            return flashcardRepository.findByFrontTextContainingIgnoreCase(keyword, pageable);
+        }
+
+        return flashcardRepository.findAll(pageable);
+    }
+
 
     public void addFlashcard(FlashcardRequest flashcardRequest) {
 
@@ -95,6 +110,8 @@ public class FlashcardService {
         flashcardRepository.delete(flashcard);
     }
 
-
+    public void deleteBulk(List<Integer> ids) {
+        flashcardRepository.deleteAllById(ids);
+    }
 
 }

@@ -5,6 +5,8 @@ import com.company.mathapp_backend_04.entity.MatchCard;
 import com.company.mathapp_backend_04.entity.MatchCardProgress;
 import com.company.mathapp_backend_04.entity.Session;
 import jakarta.validation.constraints.NotNull;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -20,4 +22,6 @@ public interface MatchCardRepository extends JpaRepository<MatchCard, Integer> {
     boolean existsByContentAndLesson(String content, Lesson lesson);
 
     boolean existsByContentAndLessonAndPairIdNot(String content1, Lesson lesson, @NotNull(message = "pairId cannot be null") Integer pairId);
+
+    Page<MatchCard> findByContentContainingIgnoreCase(String keyword, Pageable pageable);
 }

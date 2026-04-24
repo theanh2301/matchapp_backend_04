@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>User Management</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+
+    <style>
+        body { background-color: #f4f7f6; }
+        .card { border-radius: 12px; }
+        .btn { border-radius: 8px; }
+        .icon-square {
+            width: 36px; height: 36px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container-fluid mt-4 px-4">
+
+    <!-- HEADER -->
+    <div class="d-flex justify-content-between mb-3">
+        <h3><i class="bi bi-people-fill text-primary"></i> User Management</h3>
+
+        <div>
+            <button id="btnBulkDelete" class="btn btn-danger d-none" onclick="submitBulkDelete()">
+                Delete Selected
+            </button>
+
+            <a href="/admin/users/export" class="btn btn-outline-secondary">Export</a>
+
+            <!-- ✅ MODAL CREATE -->
+            <button type="button" class="btn btn-primary" onclick="openCreateModal()">
+                Create User
+            </button>
+        </div>
+    </div>
+
+    <!-- SEARCH + IMPORT -->
+    <div class="card mb-3">
+        <div class="card-body d-flex justify-content-between">
+
+            <form method="get" th:action="@{/admin/users}" class="d-flex">
+                <input type="text" name="keyword" th:value="${keyword}" class="form-control"
+                       placeholder="Search...">
+                <button class="btn btn-primary ms-2">Search</button>
+            </form>
+
+            <form action="/admin/users/import" method="post" enctype="multipart/form-data">
+                <input type="file" name="file" required>
+                <button class="btn btn-success">Import</button>
+            </form>
+
+        </div>
+    </div>
+
+    <!-- TABLE -->
+    <form id="bulkActionForm" action="/admin/users/bulk-delete" method="post">
+        <table class="table table-hover">
+
+            <thead>
+            <tr>
+                <th><input type="checkbox" id="selectAll"></th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>DOB</th>
+                <th>Grade</th>
+                <th>Role</th>
+                <th>Action</th>
+            </tr>
+            </thead>
+
+            <tbody>
+            <tr th:each="u : ${users.content}">
+                <td><input type="checkbox" name="ids" th:value="${u.id}" class="row-checkbox"></td>
+
+                <td th:text="${u.fullName}"></td>
+                <td th:text="${u.email}"></td>
+                <td th:text="${u.phone} ?: '-'"></td>
+                <td th:text="${u.dob} ?: '-'"></td>
+                <td th:text="${u.grade != null ? u.grade.gradeName : '-'}"></td>
+                <td th:text="${u.role}"></td>
+
+                <td>
+                    <!-- EDIT MODAL -->
+                    <button type="button"
+                            class="btn btn-sm btn-primary"
+                            th:attr="onclick=|openEditModal(${u.id},
+                                                            '${#strings.escapeJavaScript(u.fullName)}',
+                                                            '${u.email}',
+                                                            '${u.phone}',
+                                                            '${u.dob}',
+                                                            '${u.role}',
+                                                            ${u.grade != null ? u.grade.id : 0}
+                                                            )|">
+                        Edit
+                    </button>
+
+                    <a th:href="@{/admin/users/delete/{id}(id=${u.id})}"
+                       class="btn btn-sm btn-danger"
+                       onclick="return confirm('Delete user?')">
+                        Delete
+                    </a>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </form>
+
+    <!-- PAGINATION -->
+    <div th:if="${users.totalPages > 1}">
+        <nav>
+            <ul class="pagination justify-content-left">
+
+                <!-- PREV -->
+                <li class="page-item"
+                    th:classappend="${users.first} ? ' disabled'">
+                    <a class="page-link"
+                       th:href="@{/admin/users(page=${users.first ? 0 : users.number - 1}, keyword=${keyword})}">
+                        Prev
+                    </a>
+                </li>
+
+                <!-- PAGE NUMBERS -->
+                <li class="page-item"
+                    th:each="i : ${#numbers.sequence(0, users.totalPages - 1)}"
+                    th:classappend="${users.number == i} ? ' active'">
+                    <a class="page-link"
+                       th:href="@{/admin/users(page=${i}, keyword=${keyword})}"
+                       th:text="${i + 1}">
+                    </a>
+                </li>
+
+                <!-- NEXT -->
+                <li class="page-item"
+                    th:classappend="${users.last} ? ' disabled'">
+                    <a class="page-link"
+                       th:href="@{/admin/users(page=${users.number + 1}, keyword=${keyword})}">
+                        Next
+                    </a>
+                </li>
+
+            </ul>
+        </nav>
+    </div>
+
+</div>
+
+<!-- ================= MODAL ================= -->
+
+<div class="modal fade" id="userModal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <form action="/admin/users/save" method="post" onsubmit="return validateForm()">
+
+                <div class="modal-header">
+                    <h5 id="modalTitle">Create User</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modal-body">
+
+                    <input type="hidden" name="id" id="userId">
+
+                    <!-- FULL NAME -->
+                    <label>Full Name *</label>
+                    <input name="fullName" id="fullName" class="form-control mb-2" required>
+
+                    <!-- EMAIL -->
+                    <label>Email *</label>
+                    <input type="email" name="email" id="email" class="form-control mb-2" required>
+
+                    <!-- PASSWORD -->
+                    <div id="passwordGroup">
+                        <label>Password *</label>
+                        <input type="password" name="password" id="password" class="form-control mb-2">
+                    </div>
+
+                    <!-- PHONE -->
+                    <label>Phone</label>
+                    <input name="phone" id="phone" class="form-control mb-2">
+
+                    <!-- DOB -->
+                    <label>Date of Birth</label>
+                    <input type="date" name="dob" id="dob" class="form-control mb-2">
+
+                    <!-- STATUS -->
+                    <label>Status</label>
+                    <input name="status" id="status" class="form-control mb-2">
+
+                    <!-- PREMIUM -->
+                    <div class="form-check mb-2">
+                        <input type="hidden" name="isPremium" value="false">
+                        <input type="checkbox" name="isPremium" id="isPremium" value="true" class="form-check-input">
+                        <label class="form-check-label">Premium</label>
+                    </div>
+
+                    <!-- ROLE -->
+                    <label>Role</label>
+                    <select name="role" id="role" class="form-select mb-2">
+                        <option value="USER">USER</option>
+                        <option value="ADMIN">ADMIN</option>
+                    </select>
+
+                    <!-- GRADE -->
+                    <label>Grade *</label>
+                    <select name="gradeId" id="gradeId" class="form-select mb-2" required>
+                        <option value="">-- Select Grade --</option>
+                        <option th:each="g : ${grades}"
+                                th:value="${g.id}"
+                                th:text="${g.gradeName}">
+                        </option>
+                    </select>
+
+                    <!-- AVATAR -->
+                    <label>Avatar URL</label>
+                    <input name="avatarUrl" id="avatarUrl" class="form-control">
+
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+</div>
+
+<!-- ================= SCRIPT ================= -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    const modal = new bootstrap.Modal(document.getElementById('userModal'));
+
+    function openCreateModal() {
+        document.getElementById('modalTitle').innerText = 'Create User';
+
+        document.getElementById('userId').value = '';
+
+        document.getElementById('fullName').value = '';
+        document.getElementById('email').value = '';
+        document.getElementById('password').value = '';
+        document.getElementById('phone').value = '';
+        document.getElementById('dob').value = '';
+        document.getElementById('status').value = '';
+        document.getElementById('avatarUrl').value = '';
+        document.getElementById('isPremium').checked = false;
+
+        document.getElementById('role').value = 'USER';
+        document.getElementById('gradeId').value = '';
+
+        // hiện password
+        document.getElementById('passwordGroup').style.display = 'block';
+
+        modal.show();
+    }
+
+    function openEditModal(id, name, email, phone, dob, role, gradeId) {
+        document.getElementById('modalTitle').innerText = 'Edit User';
+
+        document.getElementById('userId').value = id;
+
+        document.getElementById('fullName').value = name;
+        document.getElementById('email').value = email;
+        document.getElementById('phone').value = phone;
+        document.getElementById('dob').value = dob;
+        document.getElementById('role').value = role;
+        document.getElementById('gradeId').value = gradeId;
+
+        // ẩn password khi edit
+        document.getElementById('passwordGroup').style.display = 'none';
+
+        modal.show();
+    }
+
+    function validateForm() {
+        const fullName = document.getElementById('fullName').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const gradeId = document.getElementById('gradeId').value;
+        const password = document.getElementById('password').value;
+        const userId = document.getElementById('userId').value;
+
+        if (!fullName || !email || !gradeId) {
+            alert("FullName, Email, Grade không được để trống");
+            return false;
+        }
+
+        // chỉ validate password khi create
+        if (!userId && !password) {
+            alert("Password không được để trống");
+            return false;
+        }
+
+        return true;
+    }
+</script>
+
+</body>
+</html>
