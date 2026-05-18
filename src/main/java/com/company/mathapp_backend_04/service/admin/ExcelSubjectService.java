@@ -1,6 +1,7 @@
 package com.company.mathapp_backend_04.service.admin;
 
 import com.company.mathapp_backend_04.entity.Subject;
+import com.company.mathapp_backend_04.model.response.ImportResult;
 import com.company.mathapp_backend_04.repository.SubjectRepository;
 import com.company.mathapp_backend_04.service.excel.ExcelSubjectProcessService;
 import lombok.RequiredArgsConstructor;
@@ -22,51 +23,40 @@ public class ExcelSubjectService {
     private final SubjectRepository subjectRepository;
     private final ExcelSubjectProcessService excelSubjectProcessService;
 
-    /**
-     * IMPORT EXCEL (chạy async)
-     */
-    public void importExcel(MultipartFile file) {
+    public ImportResult importExcel(MultipartFile file) {
         try {
+            if (file == null || file.isEmpty()) {
+                throw new RuntimeException("Please select an Excel file");
+            }
             InputStream inputStream = file.getInputStream();
-            excelSubjectProcessService.processImportAsync(inputStream);
-        } catch (Exception e) {
-            throw new RuntimeException("Không thể import subject: " + e.getMessage(), e);
+            return excelSubjectProcessService.processImportAsync(inputStream).join();
+        } catch (Exception exception) {
+            throw new RuntimeException("Cannot import subject: " + exception.getMessage(), exception);
         }
     }
 
-    /**
-     * EXPORT EXCEL
-     */
     public ByteArrayInputStream exportExcel() {
         try (Workbook workbook = new XSSFWorkbook()) {
-
             Sheet sheet = workbook.createSheet("Subjects");
 
-            // HEADER
             Row header = sheet.createRow(0);
             header.createCell(0).setCellValue("Subject Name");
             header.createCell(1).setCellValue("Icon");
             header.createCell(2).setCellValue("Grade ID");
 
-            int rowIdx = 1;
-
-            for (Subject s : subjectRepository.findAll()) {
-                Row row = sheet.createRow(rowIdx++);
-
-                row.createCell(0).setCellValue(s.getSubjectName());
-                row.createCell(1).setCellValue(s.getIcon() != null ? s.getIcon() : "");
-                row.createCell(2).setCellValue(
-                        s.getGrade() != null ? s.getGrade().getId() : 0
-                );
+            int rowIndex = 1;
+            for (Subject subject : subjectRepository.findAll()) {
+                Row row = sheet.createRow(rowIndex++);
+                row.createCell(0).setCellValue(subject.getSubjectName());
+                row.createCell(1).setCellValue(subject.getIcon() != null ? subject.getIcon() : "");
+                row.createCell(2).setCellValue(subject.getGrade() != null ? subject.getGrade().getId() : 0);
             }
 
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            workbook.write(out);
-
-            return new ByteArrayInputStream(out.toByteArray());
-
-        } catch (Exception e) {
-            throw new RuntimeException("Export Subject failed: " + e.getMessage());
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            workbook.write(outputStream);
+            return new ByteArrayInputStream(outputStream.toByteArray());
+        } catch (Exception exception) {
+            throw new RuntimeException("Export subject failed: " + exception.getMessage(), exception);
         }
     }
 }

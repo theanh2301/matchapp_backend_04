@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quiz Questions</title>
+    <title>Practice Questions</title>
     <style>
         body { margin: 0; font-family: Segoe UI, sans-serif; background: #f5f7fb; color: #1f2937; }
         .admin-shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
@@ -51,14 +51,14 @@
     <main class="content">
         <section class="toolbar">
             <div>
-                <h1>Quiz Questions</h1>
+                <h1>Practice Questions</h1>
                 <div>Them, sua, xoa theo 1 cau hoi va 4 cau tra loi.</div>
             </div>
             <div class="toolbar-actions">
-                <form id="bulkDeleteForm" th:action="@{/admin/questions/bulk-delete}" method="post"></form>
+                <form id="bulkDeleteForm" th:action="@{/admin/practice-questions/bulk-delete}" method="post"></form>
                 <button type="button" class="btn-danger" onclick="submitBulkDelete()">Xoa nhieu</button>
-                <a class="btn-link btn-muted" th:href="@{/admin/questions/export}">Export</a>
-                <form th:action="@{/admin/questions/import}" method="post" enctype="multipart/form-data" class="toolbar-actions js-import-form">
+                <a class="btn-link btn-muted" th:href="@{/admin/practice-questions/export}">Export</a>
+                <form th:action="@{/admin/practice-questions/import}" method="post" enctype="multipart/form-data" class="toolbar-actions js-import-form">
             <input type="file" name="file" accept=".xlsx" required style="max-width:220px;">
                     <button type="submit" class="btn-muted" data-loading-text="Dang import...">Import</button>
                 </form>
@@ -69,8 +69,8 @@
         <section class="search-card">
             <div th:if="${message}" class="answer-badge ok" style="display:inline-flex; margin-bottom:12px;" th:text="${message}"></div>
             <div th:if="${error}" class="error" th:text="${error}"></div>
-            <form class="search-row" method="get" th:action="@{/admin/questions}">
-                <input type="text" name="keyword" th:value="${keyword}" placeholder="Tim theo cau hoi hoac bai hoc">
+            <form class="search-row" method="get" th:action="@{/admin/practice-questions}">
+                <input type="text" name="keyword" th:value="${keyword}" placeholder="Tim theo cau hoi hoac bo practice">
                 <button type="submit">Tim kiem</button>
             </form>
         </section>
@@ -82,7 +82,8 @@
                     <th><input type="checkbox" id="checkAll"></th>
                     <th>ID</th>
                     <th>Cau hoi</th>
-                    <th>Bai hoc</th>
+                    <th>Practice</th>
+                    <th>Do kho</th>
                     <th>XP</th>
                     <th>Dap an</th>
                     <th>Hanh dong</th>
@@ -90,13 +91,14 @@
                 </thead>
                 <tbody>
                 <tr th:if="${#lists.isEmpty(questions.content)}">
-                    <td colspan="7">Khong co du lieu.</td>
+                    <td colspan="8">Khong co du lieu.</td>
                 </tr>
                 <tr th:each="q : ${questions.content}">
                     <td><input type="checkbox" class="row-check" th:value="${q.id}"></td>
                     <td th:text="${q.id}"></td>
                     <td th:text="${q.content}"></td>
-                    <td th:text="${q.lessonName}"></td>
+                    <td th:text="${q.practiceTitle}"></td>
+                    <td th:text="${q.difficulty}"></td>
                     <td th:text="${q.xpReward}"></td>
                     <td>
                         <div th:each="a : ${q.answers}" class="answer-line">
@@ -109,7 +111,8 @@
                                 th:attr="data-id=${q.id},
                                          data-content=${q.content},
                                          data-xp=${q.xpReward},
-                                         data-lesson=${q.lessonId},
+                                         data-practice=${q.practiceId},
+                                         data-difficulty=${q.difficulty},
                                          data-a0-id=${q.answers.size() > 0 ? q.answers[0].id : ''},data-a0-content=${q.answers.size() > 0 ? q.answers[0].content : ''},data-a0-desc=${q.answers.size() > 0 ? q.answers[0].description : ''},data-a0-correct=${q.answers.size() > 0 ? q.answers[0].isCorrect : false},
                                          data-a1-id=${q.answers.size() > 1 ? q.answers[1].id : ''},data-a1-content=${q.answers.size() > 1 ? q.answers[1].content : ''},data-a1-desc=${q.answers.size() > 1 ? q.answers[1].description : ''},data-a1-correct=${q.answers.size() > 1 ? q.answers[1].isCorrect : false},
                                          data-a2-id=${q.answers.size() > 2 ? q.answers[2].id : ''},data-a2-content=${q.answers.size() > 2 ? q.answers[2].content : ''},data-a2-desc=${q.answers.size() > 2 ? q.answers[2].description : ''},data-a2-correct=${q.answers.size() > 2 ? q.answers[2].isCorrect : false},
@@ -117,32 +120,32 @@
                                 onclick="openEdit(this)">
                             Sua
                         </button>
-                        <a class="btn-link btn-danger" th:href="@{/admin/questions/delete/{id}(id=${q.id})}" onclick="return confirm('Xoa cau hoi nay?')">Xoa</a>
+                        <a class="btn-link btn-danger" th:href="@{/admin/practice-questions/delete/{id}(id=${q.id})}" onclick="return confirm('Xoa cau hoi nay?')">Xoa</a>
                     </td>
                 </tr>
                 </tbody>
             </table>
 
             <div class="pagination" th:if="${questions.totalPages > 1}">
-                <a th:if="${!questions.first}" th:href="@{/admin/questions(page=0, keyword=${keyword})}">First</a>
-                <a th:if="${!questions.first}" th:href="@{/admin/questions(page=${questions.number - 1}, keyword=${keyword})}">Prev</a>
+                <a th:if="${!questions.first}" th:href="@{/admin/practice-questions(page=0, keyword=${keyword})}">First</a>
+                <a th:if="${!questions.first}" th:href="@{/admin/practice-questions(page=${questions.number - 1}, keyword=${keyword})}">Prev</a>
                 <th:block th:each="i : ${#numbers.sequence(0, questions.totalPages - 1)}">
                     <span th:if="${i == 1 and questions.number > 3}">...</span>
                     <a th:if="${i == 0 or i == questions.totalPages - 1 or (i >= questions.number - 2 and i <= questions.number + 2)}"
-                       th:href="@{/admin/questions(page=${i}, keyword=${keyword})}"
+                       th:href="@{/admin/practice-questions(page=${i}, keyword=${keyword})}"
                        th:text="${i + 1}"
                        th:classappend="${questions.number == i ? ' active' : ''}"></a>
                     <span th:if="${i == questions.totalPages - 2 and questions.number < questions.totalPages - 4}">...</span>
                 </th:block>
-                <a th:if="${!questions.last}" th:href="@{/admin/questions(page=${questions.number + 1}, keyword=${keyword})}">Next</a>
-                <a th:if="${!questions.last}" th:href="@{/admin/questions(page=${questions.totalPages - 1}, keyword=${keyword})}">Last</a>
+                <a th:if="${!questions.last}" th:href="@{/admin/practice-questions(page=${questions.number + 1}, keyword=${keyword})}">Next</a>
+                <a th:if="${!questions.last}" th:href="@{/admin/practice-questions(page=${questions.totalPages - 1}, keyword=${keyword})}">Last</a>
             </div>
         </section>
     </main>
 </div>
 
 <dialog id="questionDialog">
-    <form th:action="@{/admin/questions/save}" method="post" onsubmit="return syncCorrectAnswers()">
+    <form th:action="@{/admin/practice-questions/save}" method="post" onsubmit="return syncCorrectAnswers()">
         <div class="modal-head">
             <h2 id="dialogTitle">Them cau hoi</h2>
             <button type="button" class="btn-muted" onclick="closeDialog()">Dong</button>
@@ -155,18 +158,24 @@
                     <textarea name="content" id="content" rows="3" required></textarea>
                 </div>
                 <div>
-                    <label>Bai hoc</label>
+                    <label>Practice</label>
                     <div class="lookup">
-                        <input type="text" id="lessonSearch" placeholder="Go id hoac ten lesson..." autocomplete="off" required>
-                        <input type="hidden" name="lessonId" id="lessonId" required>
-                        <div class="lookup-menu" id="lessonLookup">
+                        <input type="text" id="practiceSearch" placeholder="Go id hoac ten practice..." autocomplete="off" required>
+                        <input type="hidden" name="practiceId" id="practiceId" required>
+                        <div class="lookup-menu" id="practiceLookup">
                             <div class="lookup-item"
-                                 th:each="lesson : ${lessons}"
-                                 th:attr="data-id=${lesson.id},data-name=${lesson.lessonName}"
-                                 th:text="|[${lesson.id}] ${lesson.lessonName}|"
-                                 onclick="selectLookupItem(this, 'lesson')"></div>
+                                 th:each="practice : ${practices}"
+                                 th:attr="data-id=${practice.id},data-name=${practice.title}"
+                                 th:text="|[${practice.id}] ${practice.title}|"
+                                 onclick="selectLookupItem(this, 'practice')"></div>
                         </div>
                     </div>
+                    <label style="margin-top: 12px; display: block;">Do kho</label>
+                    <select name="difficulty" id="difficulty" required>
+                        <option value="EASY">EASY</option>
+                        <option value="MEDIUM">MEDIUM</option>
+                        <option value="HARD">HARD</option>
+                    </select>
                     <label style="margin-top: 12px; display: block;">XP</label>
                     <input type="number" name="xpReward" id="xpReward" min="0" required>
                 </div>
@@ -204,8 +213,9 @@
         document.getElementById('questionId').value = '';
         document.getElementById('content').value = '';
         document.getElementById('xpReward').value = '';
-        document.getElementById('lessonId').value = '';
-        document.getElementById('lessonSearch').value = '';
+        document.getElementById('difficulty').value = 'EASY';
+        document.getElementById('practiceId').value = '';
+        document.getElementById('practiceSearch').value = '';
         for (let i = 0; i < 4; i++) {
             document.getElementById(`answer-id-${i}`).value = '';
             document.getElementById(`answer-content-${i}`).value = '';
@@ -221,7 +231,8 @@
         document.getElementById('questionId').value = button.dataset.id;
         document.getElementById('content').value = button.dataset.content;
         document.getElementById('xpReward').value = button.dataset.xp;
-        setLookupValue('lesson', button.dataset.lesson);
+        setLookupValue('practice', button.dataset.practice);
+        document.getElementById('difficulty').value = button.dataset.difficulty;
         for (let i = 0; i < 4; i++) {
             document.getElementById(`answer-id-${i}`).value = button.dataset[`a${i}Id`] || '';
             document.getElementById(`answer-content-${i}`).value = button.dataset[`a${i}Content`] || '';
@@ -236,8 +247,8 @@
     function closeDialog() { dialog.close(); }
 
     function syncCorrectAnswers() {
-        if (!document.getElementById('lessonId').value) {
-            alert('Vui long chon lesson tu danh sach goi y.');
+        if (!document.getElementById('practiceId').value) {
+            alert('Vui long chon practice tu danh sach goi y.');
             return false;
         }
         const checked = document.querySelector('input[name="correctIndex"]:checked');

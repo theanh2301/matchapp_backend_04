@@ -11,9 +11,15 @@ import com.company.mathapp_backend_04.model.request.PracticeQuestionRequest;
 import com.company.mathapp_backend_04.model.response.*;
 import com.company.mathapp_backend_04.repository.PracticeQuestionRepository;
 import com.company.mathapp_backend_04.repository.PracticeAnswerRepository;
+import com.company.mathapp_backend_04.repository.PracticeProgressRepository;
 import com.company.mathapp_backend_04.repository.PracticeRepository;
+import com.company.mathapp_backend_04.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -26,14 +32,20 @@ public class PracticeQuestionService {
     private final PracticeQuestionRepository practiceQuestionRepository;
     private final PracticeAnswerRepository practiceAnswerRepository;
     private final PracticeRepository practiceRepository;
+    private final PracticeProgressRepository practiceProgressRepository;
+    private final UserRepository userRepository;
 
     public List<PracticeQuestionResponse> getPracticeQuestionByPracticeIdAndDifficulty(Integer id, Difficulty difficulty) {
         List<PracticeQuestion> practiceQuestions = practiceQuestionRepository.findByPracticeIdAndDifficulty(id, difficulty);
+        Map<Integer, List<PracticeAnswer>> answersByQuestionId = practiceAnswerRepository.findByPracticeQuestionIdIn(
+                        practiceQuestions.stream().map(PracticeQuestion::getId).toList()
+                ).stream()
+                .collect(Collectors.groupingBy(answer -> answer.getPracticeQuestion().getId()));
 
         return practiceQuestions.stream().map(q -> {
 
-            List<PracticeAnswerResponse> answers = practiceAnswerRepository
-                    .findByPracticeQuestionId(q.getId())
+            List<PracticeAnswerResponse> answers = answersByQuestionId
+                    .getOrDefault(q.getId(), List.of())
                     .stream()
                     .map(a -> new PracticeAnswerResponse(
                             a.getId(),
@@ -60,11 +72,15 @@ public class PracticeQuestionService {
 
     public List<PracticeQuestionResponse> getPracticeQuestionByPracticeId(Integer id) {
         List<PracticeQuestion> practiceQuestions = practiceQuestionRepository.findByPracticeId(id);
+        Map<Integer, List<PracticeAnswer>> answersByQuestionId = practiceAnswerRepository.findByPracticeQuestionIdIn(
+                        practiceQuestions.stream().map(PracticeQuestion::getId).toList()
+                ).stream()
+                .collect(Collectors.groupingBy(answer -> answer.getPracticeQuestion().getId()));
 
         return practiceQuestions.stream().map(q -> {
 
-            List<PracticeAnswerResponse> answers = practiceAnswerRepository
-                    .findByPracticeQuestionId(q.getId())
+            List<PracticeAnswerResponse> answers = answersByQuestionId
+                    .getOrDefault(q.getId(), List.of())
                     .stream()
                     .map(a -> new PracticeAnswerResponse(
                             a.getId(),
@@ -85,15 +101,58 @@ public class PracticeQuestionService {
         }).toList();
     }
 
+    public List<PracticeQuestionResponse> getAiPracticeQuestions(
+            Integer practiceId,
+            Integer userId,
+            Difficulty difficulty,
+            Integer limit
+    ) {
+        if (practiceId == null || userId == null) {
+            throw new BadRequestException("practiceId and userId must not be null");
+        }
+
+        practiceRepository.findById(practiceId)
+                .orElseThrow(() -> new NotFoundException("Practice not found"));
+        if (!userRepository.existsById(userId)) {
+            throw new NotFoundException("User not found");
+        }
+
+        List<PracticeQuestion> questions = difficulty == null
+                ? practiceQuestionRepository.findByPracticeId(practiceId)
+                : practiceQuestionRepository.findByPracticeIdAndDifficulty(practiceId, difficulty);
+
+        if (questions.isEmpty()) {
+            return List.of();
+        }
+
+        int effectiveLimit = normalizeLimit(limit, questions.size());
+        Map<Integer, PracticeHistoryScore> scoreByQuestionId = buildPracticeScores(userId, questions);
+
+        List<PracticeQuestion> selectedQuestions = questions.stream()
+                .sorted(Comparator
+                        .comparingInt((PracticeQuestion question) -> scoreByQuestionId
+                                .getOrDefault(question.getId(), PracticeHistoryScore.unanswered())
+                                .score()).reversed()
+                        .thenComparing(PracticeQuestion::getId))
+                .limit(effectiveLimit)
+                .toList();
+
+        return mapPracticeQuestions(selectedQuestions);
+    }
+
     public List<PracticeQuestionResponse> getWrongQuestionsForExam(Integer practiceId, Integer userId) {
 
         List<PracticeQuestion> practiceQuestions =
                 practiceQuestionRepository.findWrongQuestions(practiceId, userId);
+        Map<Integer, List<PracticeAnswer>> answersByQuestionId = practiceAnswerRepository.findByPracticeQuestionIdIn(
+                        practiceQuestions.stream().map(PracticeQuestion::getId).toList()
+                ).stream()
+                .collect(Collectors.groupingBy(answer -> answer.getPracticeQuestion().getId()));
 
         return practiceQuestions.stream().map(q -> {
 
-            List<PracticeAnswerResponse> answers = practiceAnswerRepository
-                    .findByPracticeQuestionId(q.getId())
+            List<PracticeAnswerResponse> answers = answersByQuestionId
+                    .getOrDefault(q.getId(), List.of())
                     .stream()
                     .map(a -> new PracticeAnswerResponse(
                             a.getId(),
@@ -112,6 +171,81 @@ public class PracticeQuestionService {
             );
 
         }).toList();
+    }
+
+    private List<PracticeQuestionResponse> mapPracticeQuestions(List<PracticeQuestion> questions) {
+        Map<Integer, List<PracticeAnswer>> answersByQuestionId = practiceAnswerRepository.findByPracticeQuestionIdIn(
+                        questions.stream().map(PracticeQuestion::getId).toList()
+                ).stream()
+                .collect(Collectors.groupingBy(answer -> answer.getPracticeQuestion().getId()));
+
+        return questions.stream().map(q -> new PracticeQuestionResponse(
+                q.getId(),
+                q.getContent(),
+                q.getXpReward(),
+                q.getDifficulty(),
+                answersByQuestionId
+                        .getOrDefault(q.getId(), List.of())
+                        .stream()
+                        .map(a -> new PracticeAnswerResponse(
+                                a.getId(),
+                                a.getContent(),
+                                a.getIsCorrect(),
+                                a.getDescription()
+                        ))
+                        .toList()
+        )).toList();
+    }
+
+    private Map<Integer, PracticeHistoryScore> buildPracticeScores(Integer userId, List<PracticeQuestion> questions) {
+        List<Integer> questionIds = questions.stream().map(PracticeQuestion::getId).toList();
+        Map<Integer, PracticeHistoryScore> scores = new HashMap<>();
+
+        for (PracticeProgress progress : practiceProgressRepository.findByUserIdAndPracticeQuestionIdIn(userId, questionIds)) {
+            Integer questionId = progress.getPracticeQuestion().getId();
+            PracticeHistoryScore current = scores.getOrDefault(questionId, PracticeHistoryScore.empty());
+            scores.put(questionId, current.with(progress));
+        }
+
+        return scores;
+    }
+
+    private int normalizeLimit(Integer limit, int maxSize) {
+        int effectiveLimit = limit == null ? 10 : limit;
+        effectiveLimit = Math.max(1, effectiveLimit);
+        return Math.min(effectiveLimit, maxSize);
+    }
+
+    private record PracticeHistoryScore(int attempts, int wrongAttempts, Boolean latestCorrect, java.time.LocalDateTime latestAnsweredAt) {
+        static PracticeHistoryScore empty() {
+            return new PracticeHistoryScore(0, 0, null, null);
+        }
+
+        static PracticeHistoryScore unanswered() {
+            return empty();
+        }
+
+        PracticeHistoryScore with(PracticeProgress progress) {
+            boolean isNewLatest = latestAnsweredAt == null
+                    || (progress.getAnsweredAt() != null && progress.getAnsweredAt().isAfter(latestAnsweredAt));
+            return new PracticeHistoryScore(
+                    attempts + 1,
+                    wrongAttempts + (Boolean.TRUE.equals(progress.getIsCorrect()) ? 0 : 1),
+                    isNewLatest ? progress.getIsCorrect() : latestCorrect,
+                    isNewLatest ? progress.getAnsweredAt() : latestAnsweredAt
+            );
+        }
+
+        int score() {
+            if (attempts == 0) {
+                return 30;
+            }
+            int score = wrongAttempts * 10;
+            if (Boolean.FALSE.equals(latestCorrect)) {
+                score += 40;
+            }
+            return score;
+        }
     }
 
     @Transactional
@@ -132,6 +266,7 @@ public class PracticeQuestionService {
         PracticeQuestion practiceQuestion = PracticeQuestion.builder()
                 .content(practiceQuestionRequest.getContent().trim())
                 .xpReward(practiceQuestionRequest.getXpReward())
+                .difficulty(practiceQuestionRequest.getDifficulty())
                 .practice(practice)
                 .build();
 
@@ -193,7 +328,8 @@ public class PracticeQuestionService {
                 }
 
                 if (!current.getContent().equals(req.getContent().trim()) ||
-                        !Objects.equals(current.getIsCorrect(), req.getIsCorrect())) {
+                        !Objects.equals(current.getIsCorrect(), req.getIsCorrect()) ||
+                        !Objects.equals(current.getDescription(), req.getDescription())) {
                     isAnswerChanged = true;
                     break;
                 }
@@ -291,4 +427,30 @@ public class PracticeQuestionService {
         practiceQuestionRepository.delete(practiceQuestion);
     }
 
+    public Page<PracticeQuestion> getAll(String keyword, int page, int size) {
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+
+        if (keyword != null && !keyword.isEmpty()) {
+            return practiceQuestionRepository.findByContentContainingIgnoreCase(keyword, pageable);
+        }
+
+        return practiceQuestionRepository.findAll(pageable);
+    }
+
+    @Transactional
+    public void deleteBulk(List<Integer> ids) {
+
+        if (ids == null || ids.isEmpty()) return;
+
+        practiceAnswerRepository.deleteByQuestionIds(ids);
+        practiceQuestionRepository.deleteAllById(ids);
+    }
+
+    @Transactional
+    public void deleteQuestion(Integer id) {
+
+        practiceAnswerRepository.deleteByQuestionId(id);
+        practiceQuestionRepository.deleteById(id);
+    }
 }

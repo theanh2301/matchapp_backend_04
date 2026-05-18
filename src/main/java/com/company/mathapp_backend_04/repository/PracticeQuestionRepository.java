@@ -4,7 +4,10 @@ import com.company.mathapp_backend_04.entity.Practice;
 import com.company.mathapp_backend_04.entity.PracticeQuestion;
 import com.company.mathapp_backend_04.model.dto.WrongQuestionDetailDTO;
 import com.company.mathapp_backend_04.model.enums.Difficulty;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -94,4 +97,7 @@ public interface PracticeQuestionRepository extends JpaRepository<PracticeQuesti
     );
 
     int countByPracticeId(Integer practiceId);
+
+    Page<PracticeQuestion> findByContentContainingIgnoreCase(String keyword, Pageable pageable);
+
 }

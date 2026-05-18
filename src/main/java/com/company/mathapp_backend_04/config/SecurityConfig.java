@@ -26,6 +26,10 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
 
+                .headers(headers -> headers
+                        .frameOptions(frameOptions -> frameOptions.sameOrigin())
+                )
+
                 .authorizeHttpRequests(auth -> auth
 
                         // ✅ API LOGIN (FIX QUAN TRỌNG)
@@ -47,7 +51,7 @@ public class SecurityConfig {
                 .formLogin(form -> form
                         .loginPage("/admin/login")
                         .loginProcessingUrl("/admin/login")
-                        .defaultSuccessUrl("/admin/match-cards", true)
+                        .defaultSuccessUrl("/admin", true)
                         .failureUrl("/admin/login?error=true")
                         .permitAll()
                 )

@@ -25,6 +25,9 @@ public class LessonService {
     private final UserRepository userRepository;
     private final LessonRepository lessonRepository;
     private final ChapterRepository chapterRepository;
+    private final FlashcardRepository flashcardRepository;
+    private final MatchCardRepository matchCardRepository;
+    private final QuizQuestionRepository quizQuestionRepository;
 
     public List<LessonResponse> getLessonsByChapterId(Integer id) {
         List<Lesson> lessons = lessonRepository.findByChapterId(id);
@@ -84,15 +87,15 @@ public class LessonService {
         lessonRepository.save(lesson);
     }
 
-    /*public void deleteLesson(Integer id) {
+    public void deleteLesson(Integer id) {
 
         if (!lessonRepository.existsById(id)) {
             throw new NotFoundException("Lesson not found");
         }
 
-        if (flashcardRepository.existsBySessonId(id)
-                || matchCardRepository.existsBySessonId(id)
-                || quizQuestionRepository.existsBySessonId(id)) {
+        if (flashcardRepository.existsByLessonId(id)
+                || matchCardRepository.existsByLessonId(id)
+                || quizQuestionRepository.existsByLessonId(id)) {
             throw new ConflictException("Cannot delete lesson because it contains related data");
         }
 
@@ -101,7 +104,16 @@ public class LessonService {
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException("Cannot delete lesson due to data constraints");
         }
-    }*/
+    }
+
+    public void deleteBulk(List<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        for (Integer id : ids) {
+            deleteLesson(id);
+        }
+    }
 
     public List<LessonOverviewDTO> getLessonOverviewsByChapterId(Integer userId, Integer chapterId) {
         return lessonRepository.getLessonOverview(userId, chapterId);

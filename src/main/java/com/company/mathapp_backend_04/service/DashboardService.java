@@ -1,6 +1,9 @@
 package com.company.mathapp_backend_04.service;
 
-import com.company.mathapp_backend_04.entity.UserStat;
+import com.company.mathapp_backend_04.exception.BadRequestException;
+import com.company.mathapp_backend_04.exception.NotFoundException;
+import com.company.mathapp_backend_04.model.dto.UserLearningProfileProjection;
+import com.company.mathapp_backend_04.model.dto.XpByDateProjection;
 import com.company.mathapp_backend_04.model.response.DashboardResponse;
 import com.company.mathapp_backend_04.model.response.UserStatResponse;
 import com.company.mathapp_backend_04.model.response.XpChartResponse;
@@ -8,6 +11,7 @@ import com.company.mathapp_backend_04.repository.SessionRepository;
 import com.company.mathapp_backend_04.repository.UserStatRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -18,64 +22,55 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class DashboardService {
 
     private final UserStatRepository userStatRepository;
     private final SessionRepository sessionRepository;
 
     public DashboardResponse getDashboard(Integer userId, LocalDate date) {
+        if (userId == null) {
+            throw new BadRequestException("User id must not be null");
+        }
 
-        // ===== 1. Lấy stats =====
-        UserStat stat = userStatRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("UserStat not found"));
+        LocalDate referenceDate = date != null ? date : LocalDate.now();
+
+        UserLearningProfileProjection profile = userStatRepository.findLearningProfileByUserId(userId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
 
         UserStatResponse stats = new UserStatResponse(
-                stat.getUserId(),
-                stat.getTotalXP(),
-                stat.getTotalLesson(),
-                stat.getTotalStudyDay(),
-                stat.getStreakDay(),
-                stat.getLastStudyDate() != null
-                        ? stat.getLastStudyDate().toLocalDate().toString()
-                        : null
+                profile.getUserId(),
+                profile.getTotalXp(),
+                profile.getTotalLesson(),
+                profile.getTotalStudyDay(),
+                profile.getStreakDay(),
+                profile.getLastStudyDate() != null ? profile.getLastStudyDate().toLocalDate().toString() : null
         );
 
-        // ===== 2. Tính range 7 ngày =====
-        LocalDate start = date.minusDays(6);
+        LocalDate startDate = referenceDate.minusDays(6);
+        LocalDateTime startDateTime = startDate.atStartOfDay();
+        LocalDateTime endDateTime = referenceDate.atTime(23, 59, 59);
 
-        LocalDateTime startDate = start.atStartOfDay();
-        LocalDateTime endDate = date.atTime(23, 59, 59);
+        List<XpByDateProjection> rawWeeklyXp = sessionRepository.getWeeklyXp(userId, startDateTime, endDateTime);
+        Map<String, Integer> xpByDate = new HashMap<>();
 
-        // ===== 3. Query DB =====
-        List<Object[]> rawData = sessionRepository.getWeeklyXp(
-                userId,
-                startDate,
-                endDate
-        );
-
-        // ===== 4. Map về dạng ngày -> xp =====
-        Map<String, Integer> xpMap = new HashMap<>();
-
-        for (Object[] row : rawData) {
-            String d = row[0].toString();
-            Integer xp = ((Number) row[1]).intValue();
-            xpMap.put(d, xp);
+        for (XpByDateProjection projection : rawWeeklyXp) {
+            if (projection.getDate() != null) {
+                xpByDate.put(projection.getDate().toString(), toInt(projection.getTotalXp()));
+            }
         }
 
-        // ===== 5. Fill đủ 7 ngày (rất quan trọng) =====
         List<XpChartResponse> weeklyXp = new ArrayList<>();
-
-        for (int i = 0; i < 7; i++) {
-            LocalDate d = start.plusDays(i);
-            String key = d.toString();
-
-            weeklyXp.add(new XpChartResponse(
-                    key,
-                    xpMap.getOrDefault(key, 0)
-            ));
+        for (int offset = 0; offset < 7; offset++) {
+            LocalDate currentDate = startDate.plusDays(offset);
+            String currentKey = currentDate.toString();
+            weeklyXp.add(new XpChartResponse(currentKey, xpByDate.getOrDefault(currentKey, 0)));
         }
 
-        // ===== 6. Return =====
         return new DashboardResponse(stats, weeklyXp);
+    }
+
+    private int toInt(Long value) {
+        return value != null ? value.intValue() : 0;
     }
 }

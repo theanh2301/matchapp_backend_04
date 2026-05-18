@@ -15,6 +15,8 @@ import java.util.Optional;
 @Repository
 public interface FlashcardRepository extends JpaRepository<Flashcard, Integer> {
 
+    boolean existsByLessonId(Integer lessonId);
+
     List<Flashcard> findByLessonId(Integer lessonId);
 
     Optional<Flashcard> findByFrontTextAndBackTextAndLesson(@NotBlank(message = "FrontText cannot be empty") String frontText, @NotBlank(message = "FrontText cannot be empty") String backText, Lesson lesson);

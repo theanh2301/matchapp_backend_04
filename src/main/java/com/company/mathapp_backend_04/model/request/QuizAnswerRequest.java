@@ -10,7 +10,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class QuizAnswerRequest {
-    @NotNull(message = "id cannot be null")
     private Integer id;
     @NotBlank(message = "content cannot be empty")
     private String content;

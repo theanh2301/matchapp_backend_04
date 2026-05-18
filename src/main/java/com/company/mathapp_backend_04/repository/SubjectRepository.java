@@ -15,7 +15,7 @@ import java.util.Optional;
 
 @Repository
 public interface SubjectRepository extends JpaRepository<Subject, Integer> {
-    Optional<Subject> findBySubjectNameIgnoreCaseAndSubjectClass(String subjectName, Integer subjectClass);
+    Optional<Subject> findBySubjectNameIgnoreCaseAndGrade_Id(String subjectName, Integer gradeId);
 
     List<Subject> findBySubjectNameContainingIgnoreCase(String name);
 

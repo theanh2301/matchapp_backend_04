@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 @Table(name = "user_stats")
 public class UserStat {
     @Id
+    @Column(name = "user_id")
     Integer userId;
 
     @MapsId

@@ -1,9 +1,8 @@
 package com.company.mathapp_backend_04.repository;
 
 import com.company.mathapp_backend_04.entity.Session;
-import com.company.mathapp_backend_04.entity.User;
+import com.company.mathapp_backend_04.model.dto.SubjectPerformanceProjection;
 import com.company.mathapp_backend_04.model.dto.XpByDateProjection;
-import com.company.mathapp_backend_04.model.enums.Source;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -23,14 +22,14 @@ public interface SessionRepository extends JpaRepository<Session, Integer> {
         GROUP BY DATE(s.completedAt)
         ORDER BY DATE(s.completedAt)
     """)
-    List<Object[]> getWeeklyXp(Integer userId,
-                               LocalDateTime startDate,
-                               LocalDateTime endDate);
+    List<XpByDateProjection> getWeeklyXp(Integer userId,
+                                         LocalDateTime startDate,
+                                         LocalDateTime endDate);
 
 
     @Query("""
 SELECT 
-    s.subjectName,
+    s.subjectName AS subjectName,
 
     SUM(
         COALESCE(lc.bestFlashcardXp, 0) +
@@ -62,7 +61,7 @@ AND s.grade.id = :gradeId
 
 GROUP BY s.subjectName
 """)
-    List<Object[]> getSubjectPerformance(Integer userId, Integer gradeId);
+    List<SubjectPerformanceProjection> getSubjectPerformance(Integer userId, Integer gradeId);
 
     Optional<Session> findByLessonId(Integer lessonId);
 

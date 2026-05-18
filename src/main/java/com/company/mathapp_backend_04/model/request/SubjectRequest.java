@@ -16,7 +16,7 @@ public class SubjectRequest {
     @NotBlank(message = "subjectName cannot be empty")
     String subjectName;
     @NotNull(message = "gradeId cannot be empty")
-    Integer subjectClass;
+    Integer gradeId;
     String icon;
 
 }

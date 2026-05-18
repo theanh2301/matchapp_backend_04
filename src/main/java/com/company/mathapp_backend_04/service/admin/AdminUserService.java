@@ -5,15 +5,17 @@ import com.company.mathapp_backend_04.entity.User;
 import com.company.mathapp_backend_04.model.enums.Role;
 import com.company.mathapp_backend_04.repository.GradeRepository;
 import com.company.mathapp_backend_04.repository.UserRepository;
+import com.company.mathapp_backend_04.repository.UserStatRepository;
 import com.company.mathapp_backend_04.service.interface_service.UserStatService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +25,7 @@ public class AdminUserService {
     private final PasswordEncoder passwordEncoder;
     private final GradeRepository gradeRepository;
     private final UserStatService userStatService;
+    private final UserStatRepository userStatRepository;
 
     public Page<User> getAll(String keyword, Pageable pageable) {
         if (keyword == null || keyword.trim().isEmpty()) {
@@ -40,50 +43,55 @@ public class AdminUserService {
 
     @Transactional
     public void create(User user, Integer gradeId) {
-
-        if (userRepository.existsByEmail(user.getEmail())) {
-            throw new RuntimeException("Email này đã được sử dụng. Vui lòng chọn một email khác!");
+        if (isBlank(user.getEmail()) || isBlank(user.getFullName()) || isBlank(user.getPassword()) || gradeId == null) {
+            throw new RuntimeException("Missing required fields");
         }
 
-        if (user.getEmail() == null || user.getFullName() == null || user.getPassword() == null || gradeId == null) {
-            throw new RuntimeException("Missing required fields");
+        if (userRepository.existsByEmail(user.getEmail().trim())) {
+            throw new RuntimeException("Email already exists");
         }
 
         Grade grade = gradeRepository.findById(gradeId)
                 .orElseThrow(() -> new RuntimeException("Grade not found"));
 
+        user.setEmail(user.getEmail().trim());
+        user.setFullName(user.getFullName().trim());
+        user.setPhone(cleanText(user.getPhone()));
+        user.setStatus(cleanText(user.getStatus()));
+        user.setAvatarUrl(cleanText(user.getAvatarUrl()));
         user.setGrade(grade);
-
-        if (user.getRole() == null) user.setRole(Role.USER);
-        if (user.getIsPremium() == null) user.setIsPremium(false);
-
+        user.setRole(user.getRole() == null ? Role.USER : user.getRole());
+        user.setIsPremium(Boolean.TRUE.equals(user.getIsPremium()));
         user.setCreatedAt(LocalDateTime.now());
-
         user.setPassword(passwordEncoder.encode(user.getPassword()));
 
-        userStatService.createUserStat(user);
-        userRepository.save(user);
-
+        User savedUser = userRepository.save(user);
+        userStatService.createUserStat(savedUser);
     }
 
-    // Bên trong class AdminUserService
-
+    @Transactional
     public void update(User newUser, Integer gradeId) {
         User old = userRepository.findById(newUser.getId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // ==========================================
-        // 1. CÁC TRƯỜNG BẮT BUỘC (Không được trống)
-        // ==========================================
-        if (newUser.getEmail() == null || newUser.getEmail().trim().isEmpty()) {
-            throw new RuntimeException("Email không được để trống.");
+        if (isBlank(newUser.getEmail())) {
+            throw new RuntimeException("Email cannot be blank");
         }
-        old.setEmail(newUser.getEmail());
+        if (isBlank(newUser.getFullName())) {
+            throw new RuntimeException("Full name cannot be blank");
+        }
 
-        if (newUser.getFullName() == null || newUser.getFullName().trim().isEmpty()) {
-            throw new RuntimeException("Họ tên không được để trống.");
+        String normalizedEmail = newUser.getEmail().trim();
+        if (!old.getEmail().equalsIgnoreCase(normalizedEmail) && userRepository.existsByEmail(normalizedEmail)) {
+            throw new RuntimeException("Email already exists");
         }
-        old.setFullName(newUser.getFullName());
+
+        old.setEmail(normalizedEmail);
+        old.setFullName(newUser.getFullName().trim());
+        old.setPhone(cleanText(newUser.getPhone()));
+        old.setStatus(cleanText(newUser.getStatus()));
+        old.setDob(newUser.getDob());
+        old.setAvatarUrl(cleanText(newUser.getAvatarUrl()));
 
         if (gradeId != null) {
             Grade grade = gradeRepository.findById(gradeId)
@@ -94,54 +102,34 @@ public class AdminUserService {
         if (newUser.getRole() != null) {
             old.setRole(newUser.getRole());
         }
-
         if (newUser.getIsPremium() != null) {
             old.setIsPremium(newUser.getIsPremium());
         }
 
-        // ==========================================
-        // 2. CÁC TRƯỜNG TÙY CHỌN
-        // (Đã có thì không được xóa, chưa có thì được để trống)
-        // ==========================================
-
-        // -- Số điện thoại (Phone) --
-        if (newUser.getPhone() != null && !newUser.getPhone().trim().isEmpty()) {
-            old.setPhone(newUser.getPhone());
-        } else if (old.getPhone() != null && !old.getPhone().trim().isEmpty()) {
-            throw new RuntimeException("Không được xoá số điện thoại đã có.");
-        }
-
-        // -- Trạng thái (Status) --
-        if (newUser.getStatus() != null && !newUser.getStatus().trim().isEmpty()) {
-            old.setStatus(newUser.getStatus());
-        } else if (old.getStatus() != null && !old.getStatus().trim().isEmpty()) {
-            throw new RuntimeException("Không được xoá trạng thái (status) đã có.");
-        }
-
-        // -- Ngày sinh (DOB) --
-        // Lưu ý: DOB là kiểu ngày tháng nên chỉ cần check null, không có isEmpty()
-        if (newUser.getDob() != null) {
-            old.setDob(newUser.getDob());
-        } else if (old.getDob() != null) {
-            throw new RuntimeException("Không được xoá ngày sinh đã có.");
-        }
-
-        // -- Ảnh đại diện (Avatar URL) --
-        if (newUser.getAvatarUrl() != null && !newUser.getAvatarUrl().trim().isEmpty()) {
-            old.setAvatarUrl(newUser.getAvatarUrl());
-        } else if (old.getAvatarUrl() != null && !old.getAvatarUrl().trim().isEmpty()) {
-            throw new RuntimeException("Không được xoá ảnh đại diện đã có.");
-        }
-
-        // ==========================================
-        // 3. CẬP NHẬT THỜI GIAN & LƯU DB
-        // ==========================================
         old.setUpdatedAt(LocalDateTime.now());
-
         userRepository.save(old);
     }
 
+    @Transactional
     public void delete(int id) {
+        userStatRepository.deleteById(id);
         userRepository.deleteById(id);
+    }
+
+    @Transactional
+    public void deleteBulk(List<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        userStatRepository.deleteAllById(ids);
+        userRepository.deleteAllById(ids);
+    }
+
+    private String cleanText(String value) {
+        return isBlank(value) ? null : value.trim();
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 }

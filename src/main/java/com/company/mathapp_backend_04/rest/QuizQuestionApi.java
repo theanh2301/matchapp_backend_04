@@ -32,6 +32,23 @@ public class QuizQuestionApi {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/{lessonId}/ai-generated")
+    public ResponseEntity<ApiResponse<List<QuizQuestionResponse>>> getAiQuizQuestions(
+            @PathVariable Integer lessonId,
+            @RequestParam Integer userId,
+            @RequestParam(required = false, defaultValue = "10") Integer limit
+    ) {
+        List<QuizQuestionResponse> questions = quizQuestionService.getAiQuizQuestions(lessonId, userId, limit);
+
+        ApiResponse<List<QuizQuestionResponse>> response = new ApiResponse<>(
+                200,
+                "Get AI personalized quiz questions successfully",
+                questions
+        );
+
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping
     public ResponseEntity<?> addQuestion(@RequestBody QuizQuestionRequest quizQuestionRequest) {
         quizQuestionService.addQuestion(quizQuestionRequest);

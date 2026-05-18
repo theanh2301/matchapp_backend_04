@@ -1,18 +1,28 @@
 package com.company.mathapp_backend_04.service;
 
+import com.company.mathapp_backend_04.entity.Grade;
 import com.company.mathapp_backend_04.entity.Subject;
 import com.company.mathapp_backend_04.entity.User;
 import com.company.mathapp_backend_04.exception.BadRequestException;
+import com.company.mathapp_backend_04.exception.NotFoundException;
 import com.company.mathapp_backend_04.model.dto.SubjectOverviewDTO;
+import com.company.mathapp_backend_04.model.dto.SubjectPerformanceProjection;
 import com.company.mathapp_backend_04.model.dto.SubjectProgressDTO;
+import com.company.mathapp_backend_04.model.dto.TypeXpSummaryProjection;
 import com.company.mathapp_backend_04.model.enums.Source;
 import com.company.mathapp_backend_04.model.request.SubjectRequest;
 import com.company.mathapp_backend_04.model.response.SubjectPerformanceResponse;
 import com.company.mathapp_backend_04.model.response.SubjectResponse;
 import com.company.mathapp_backend_04.model.response.TypePerformanceResponse;
-import com.company.mathapp_backend_04.repository.*;
+import com.company.mathapp_backend_04.repository.ChapterRepository;
+import com.company.mathapp_backend_04.repository.GradeRepository;
+import com.company.mathapp_backend_04.repository.LessonCompletionRepository;
+import com.company.mathapp_backend_04.repository.SessionRepository;
+import com.company.mathapp_backend_04.repository.SubjectRepository;
+import com.company.mathapp_backend_04.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,34 +30,31 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class SubjectService {
 
     private final SubjectRepository subjectRepository;
     private final ChapterRepository chapterRepository;
+    private final GradeRepository gradeRepository;
     private final UserRepository userRepository;
     private final SessionRepository sessionRepository;
     private final LessonCompletionRepository lessonCompletionRepository;
 
     public List<SubjectOverviewDTO> getSubjectOverviews(Integer userId) {
-
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found"));
 
-        Integer gradeId = user.getGrade().getId();
-
-        return subjectRepository.getSubjectOverviewsByGrade(user.getId(), gradeId);
+        return subjectRepository.getSubjectOverviewsByGrade(user.getId(), user.getGrade().getId());
     }
 
     public List<SubjectResponse> getAllSubjects() {
-
-        List<Subject> subjects = subjectRepository.findAll();
-
-        return subjects.stream()
-                .map(s -> new SubjectResponse(
-                        s.getId(),
-                        s.getSubjectName(),
-                        s.getSubjectClass(),
-                        s.getIcon()
+        return subjectRepository.findAll().stream()
+                .map(subject -> new SubjectResponse(
+                        subject.getId(),
+                        subject.getSubjectName(),
+                        subject.getIcon(),
+                        subject.getGrade() != null ? subject.getGrade().getId() : null,
+                        subject.getGrade() != null ? subject.getGrade().getGradeName() : null
                 ))
                 .toList();
     }
@@ -60,131 +67,122 @@ public class SubjectService {
         return subjectRepository.getSubjectProgress(userId);
     }
 
+    @Transactional
     public void addSubject(SubjectRequest subjectRequest) {
-        Optional<Subject> existingSubject = subjectRepository.
-                findBySubjectNameIgnoreCaseAndSubjectClass(
-                        subjectRequest.getSubjectName(),
-                        subjectRequest.getSubjectClass()
-                );
+        Grade grade = gradeRepository.findById(subjectRequest.getGradeId())
+                .orElseThrow(() -> new NotFoundException("Grade not found"));
+
+        Optional<Subject> existingSubject = subjectRepository.findBySubjectNameIgnoreCaseAndGrade_Id(
+                subjectRequest.getSubjectName(),
+                subjectRequest.getGradeId()
+        );
 
         if (existingSubject.isPresent()) {
-            throw new BadRequestException("Subject in this class already exist");
+            throw new BadRequestException("Subject already exists in this grade");
         }
 
         Subject subject = Subject.builder()
                 .subjectName(subjectRequest.getSubjectName())
-                .subjectClass(subjectRequest.getSubjectClass())
                 .icon(subjectRequest.getIcon())
+                .grade(grade)
                 .build();
 
         subjectRepository.save(subject);
     }
 
     public List<SubjectPerformanceResponse> getSubjectPerformance(Integer userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
 
-        User user = userRepository.findById(userId).orElseThrow(() -> new BadRequestException("User not found"));
-
-        Integer gradeId = user.getGrade().getId();
-
-        List<Object[]> data = sessionRepository.getSubjectPerformance(userId, gradeId);
-
+        List<SubjectPerformanceProjection> data = sessionRepository.getSubjectPerformance(userId, user.getGrade().getId());
         List<SubjectPerformanceResponse> result = new ArrayList<>();
 
-        for (Object[] row : data) {
-
-            String subject = (String) row[0];
-            int earnedXp = ((Number) row[1]).intValue();
-            int maxXp = ((Number) row[2]).intValue();
-
-            int accuracy = maxXp > 0 ? (earnedXp * 100 / maxXp) : 0;
-
-            String level = getLevel(accuracy);
+        for (SubjectPerformanceProjection row : data) {
+            int earnedXp = toInt(row.getEarnedXp());
+            int maxXp = toInt(row.getMaxXp());
+            int accuracy = maxXp > 0 ? earnedXp * 100 / maxXp : 0;
 
             result.add(new SubjectPerformanceResponse(
-                    subject,
+                    row.getSubjectName(),
                     accuracy,
-                    0, // TODO: tính tuần sau
-                    level
+                    0,
+                    getLevel(accuracy)
             ));
         }
 
         return result;
     }
 
-    private String getLevel(int acc) {
-        if (acc >= 75) return "Khá";
-        if (acc >= 50) return "Trung bình";
-        return "Yếu";
-    }
-
     public List<TypePerformanceResponse> getTypePerformance(Integer userId) {
+        TypeXpSummaryProjection summary = lessonCompletionRepository.getTypeXpSummary(userId);
 
-        // ===== 1. Lấy best XP =====
-        Object[] bestXpData = lessonCompletionRepository.getTotalBestXp(userId);
-
-        int bestFlash = bestXpData[0] != null ? ((Number) bestXpData[0]).intValue() : 0;
-        int bestMatch = bestXpData[1] != null ? ((Number) bestXpData[1]).intValue() : 0;
-        int bestQuiz = bestXpData[2] != null ? ((Number) bestXpData[2]).intValue() : 0;
-
-        // ===== 2. Lấy max XP =====
-        Object[] maxXpData = lessonCompletionRepository.getTotalMaxXp();
-
-        int maxFlash = ((Number) maxXpData[0]).intValue();
-        int maxMatch = ((Number) maxXpData[1]).intValue();
-        int maxQuiz = ((Number) maxXpData[2]).intValue();
-
-        // ===== 3. Tính accuracy =====
         List<TypePerformanceResponse> result = new ArrayList<>();
-
         result.add(new TypePerformanceResponse(
                 Source.FLASHCARD_GAME.name(),
-                maxFlash > 0 ? bestFlash * 100 / maxFlash : 0
+                calculateAccuracy(toInt(summary.getEarnedFlashcardXp()), toInt(summary.getMaxFlashcardXp()))
         ));
-
         result.add(new TypePerformanceResponse(
                 Source.MATCH_CARD_GAME.name(),
-                maxMatch > 0 ? bestMatch * 100 / maxMatch : 0
+                calculateAccuracy(toInt(summary.getEarnedMatchXp()), toInt(summary.getMaxMatchXp()))
         ));
-
         result.add(new TypePerformanceResponse(
                 Source.QUIZ_GAME.name(),
-                maxQuiz > 0 ? bestQuiz * 100 / maxQuiz : 0
+                calculateAccuracy(toInt(summary.getEarnedQuizXp()), toInt(summary.getMaxQuizXp()))
         ));
 
         return result;
     }
 
+    @Transactional
     public void updateSubject(Integer id, SubjectRequest subjectRequest) {
-
         Subject subject = subjectRepository.findById(id)
-                .orElseThrow(() -> new BadRequestException("Subject not found"));
+                .orElseThrow(() -> new NotFoundException("Subject not found"));
 
-        Optional<Subject> existingSubject =
-                subjectRepository.findBySubjectNameIgnoreCaseAndSubjectClass(
-                        subjectRequest.getSubjectName(),
-                        subjectRequest.getSubjectClass()
-                );
+        Grade grade = gradeRepository.findById(subjectRequest.getGradeId())
+                .orElseThrow(() -> new NotFoundException("Grade not found"));
+
+        Optional<Subject> existingSubject = subjectRepository.findBySubjectNameIgnoreCaseAndGrade_Id(
+                subjectRequest.getSubjectName(),
+                subjectRequest.getGradeId()
+        );
 
         if (existingSubject.isPresent() && !existingSubject.get().getId().equals(id)) {
             throw new BadRequestException("Subject already exists");
         }
 
         subject.setSubjectName(subjectRequest.getSubjectName());
-        subject.setSubjectClass(subjectRequest.getSubjectClass());
         subject.setIcon(subjectRequest.getIcon());
-
+        subject.setGrade(grade);
         subjectRepository.save(subject);
     }
 
+    @Transactional
     public void deleteSubject(Integer id) {
-
         Subject subject = subjectRepository.findById(id)
-                .orElseThrow(() -> new BadRequestException("Subject not found"));
+                .orElseThrow(() -> new NotFoundException("Subject not found"));
 
         if (chapterRepository.existsBySubjectId(id)) {
             throw new BadRequestException("Cannot delete subject because it contains chapter");
         }
 
         subjectRepository.delete(subject);
+    }
+
+    private String getLevel(int accuracy) {
+        if (accuracy >= 75) {
+            return "Strong";
+        }
+        if (accuracy >= 50) {
+            return "Average";
+        }
+        return "Needs Improvement";
+    }
+
+    private int calculateAccuracy(int earnedXp, int maxXp) {
+        return maxXp > 0 ? earnedXp * 100 / maxXp : 0;
+    }
+
+    private int toInt(Long value) {
+        return value != null ? value.intValue() : 0;
     }
 }

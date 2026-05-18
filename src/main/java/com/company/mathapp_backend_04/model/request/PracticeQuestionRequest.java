@@ -1,6 +1,7 @@
 package com.company.mathapp_backend_04.model.request;
 
 import com.company.mathapp_backend_04.model.enums.Difficulty;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -24,6 +25,7 @@ public class PracticeQuestionRequest {
     Difficulty difficulty;
 
     @NotNull(message = "answer cannot be null")
+    @Valid
     List<PracticeAnswerRequest> answers;
 
 }

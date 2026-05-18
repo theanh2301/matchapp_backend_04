@@ -67,6 +67,9 @@ public class ExcelUserProcessService {
 
             while (rows.hasNext()) {
                 Row row = rows.next();
+                if (isBlankRow(row, 10)) {
+                    continue;
+                }
                 totalCount++;
 
                 List<String> rowData = new ArrayList<>();
@@ -90,19 +93,20 @@ public class ExcelUserProcessService {
 
                     // validate
                     if (email == null || email.isEmpty()) throw new RuntimeException("Email is required");
-                    if (fullName == null || fullName.isEmpty()) throw new RuntimeException("FullName is required");
-                    if (password == null || password.isEmpty()) throw new RuntimeException("Password is required");
+                    if (fullName == null || fullName.isEmpty()) throw new RuntimeException("Full name is required");
                     if (gradeIdRaw == null) throw new RuntimeException("GradeId is required");
-
-                    if (userRepository.findByEmail(email).isPresent()) {
-                        throw new RuntimeException("Email already exists");
-                    }
 
                     Grade grade = gradeRepository.findById(gradeIdRaw.intValue())
                             .orElseThrow(() -> new RuntimeException("Grade not found"));
 
-                    User user = new User();
-                    user.setFullName(fullName);
+                    User user = userRepository.findByEmail(email.trim()).orElseGet(User::new);
+                    boolean isNewUser = user.getId() == null;
+
+                    if (isNewUser && (password == null || password.isEmpty())) {
+                        throw new RuntimeException("Password is required for new user");
+                    }
+
+                    user.setFullName(fullName.trim());
 
                     if (dobStr != null && !dobStr.isEmpty()) {
                         try {
@@ -110,27 +114,33 @@ public class ExcelUserProcessService {
                         } catch (Exception e) {
                             throw new RuntimeException("Invalid DOB format (yyyy-MM-dd)");
                         }
+                    } else {
+                        user.setDob(null);
                     }
 
-                    user.setStatus(status);
-                    user.setEmail(email);
-                    user.setPhone(phone);
-                    user.setPassword(passwordEncoder.encode(password));
-                    user.setAvatarUrl(avatarUrl);
+                    user.setStatus(cleanText(status));
+                    user.setEmail(email.trim().toLowerCase());
+                    user.setPhone(cleanPhone(phone));
+                    if (password != null && !password.isBlank()) {
+                        user.setPassword(passwordEncoder.encode(password.trim()));
+                    }
+                    user.setAvatarUrl(cleanText(avatarUrl));
                     user.setIsPremium(isPremium != null ? isPremium : false);
 
                     user.setRole(
                             (roleStr != null && !roleStr.isEmpty())
                                     ? Role.valueOf(roleStr)
-                                    : Role.USER
+                                    : (user.getRole() != null ? user.getRole() : Role.USER)
                     );
 
                     user.setGrade(grade);
-                    user.setCreatedAt(LocalDateTime.now());
+                    if (isNewUser) {
+                        user.setCreatedAt(LocalDateTime.now());
+                    }
                     user.setUpdatedAt(LocalDateTime.now());
 
-                    userRepository.save(user);
-                    userStatService.createUserStat(user);
+                    User savedUser = userRepository.save(user);
+                    userStatService.createUserStat(savedUser);
 
                     successCount++;
 
@@ -210,6 +220,35 @@ public class ExcelUserProcessService {
         if (cell == null) return null;
         DataFormatter formatter = new DataFormatter();
         return formatter.formatCellValue(cell).trim();
+    }
+
+    private boolean isBlankRow(Row row, int columnCount) {
+        for (int i = 0; i < columnCount; i++) {
+            String value = getString(row.getCell(i));
+            if (value != null && !value.isBlank()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String cleanText(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String cleanPhone(String value) {
+        String phone = cleanText(value);
+        if (phone == null) {
+            return null;
+        }
+        if (!phone.matches("\\d{10}")) {
+            throw new RuntimeException("Phone number must contain exactly 10 digits");
+        }
+        return phone;
     }
 
     private Double getNumeric(Cell cell) {

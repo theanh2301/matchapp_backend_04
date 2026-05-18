@@ -9,10 +9,13 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.List;
 
 @Repository
 public interface PracticeProgressRepository extends JpaRepository<PracticeProgress, Integer> {
     Optional<PracticeProgress> findByUserAndPracticeQuestion(User user, PracticeQuestion question);
+
+    List<PracticeProgress> findByUserIdAndPracticeQuestionIdIn(Integer userId, List<Integer> questionIds);
 
     @Query(value = """
     SELECT COALESCE(SUM(pp.totalxp), 0)

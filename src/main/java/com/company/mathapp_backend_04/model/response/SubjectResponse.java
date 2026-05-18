@@ -12,7 +12,8 @@ public class SubjectResponse {
 
     Integer id;
     String subjectName;
-    Integer subjectClass;
     String icon;
+    Integer gradeId;
+    String gradeName;
 
 }

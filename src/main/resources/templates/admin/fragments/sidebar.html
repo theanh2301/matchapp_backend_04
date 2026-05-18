@@ -1,39 +1,48 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <body>
-<div th:fragment="sidebar(activeMenu)" class="d-flex flex-column flex-shrink-0 p-3 text-white bg-dark" style="width: 280px; min-height: 100vh; position: sticky; top: 0;">
-  <a href="/admin" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-decoration-none">
-    <i class="bi bi-mortarboard-fill fs-3 me-2"></i>
-    <span class="fs-4 fw-bold">Admin Panel</span>
-  </a>
-  <hr>
-  <ul class="nav nav-pills flex-column mb-auto gap-2">
-    <li class="nav-item">
-      <a th:href="@{/admin/users}" class="nav-link text-white"
-         th:classappend="${activeMenu == 'users' ? 'active' : ''}">
-        <i class="bi bi-people-fill me-2"></i> Users
-      </a>
-    </li>
-    <li>
-      <a th:href="@{/admin/subjects}" class="nav-link text-white"
-         th:classappend="${activeMenu == 'subjects' ? 'active' : ''}">
-        <i class="bi bi-book-half me-2"></i> Subjects
-      </a>
-    </li>
-  </ul>
+<aside th:fragment="sidebar(activeMenu)" class="admin-sidebar">
+    <div class="sidebar-brand">
+        <a th:href="@{/admin}" data-admin-link style="color:#ffffff;font-size:22px;font-weight:700;text-decoration:none;">MathApp Admin</a>
+    </div>
 
-  <hr>
-  <div class="dropdown">
-    <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">
-      <img src="https://ui-avatars.com/api/?name=Admin" alt="" width="32" height="32" class="rounded-circle me-2">
-      <strong>Admin</strong>
-    </a>
-    <ul class="dropdown-menu dropdown-menu-dark text-small shadow" aria-labelledby="dropdownUser1">
-      <li><a class="dropdown-item" href="#">Profile</a></li>
-      <li><hr class="dropdown-divider"></li>
-      <li><a class="dropdown-item" href="#">Sign out</a></li>
-    </ul>
-  </div>
-</div>
+    <nav class="sidebar-nav" style="display:flex;flex-direction:column;gap:10px;">
+        <a th:href="@{/admin/home-content}" th:style="${activeMenu == 'dashboard'} ? 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:#2f56d9;font-size:15px;line-height:1.35;' : 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:transparent;font-size:15px;line-height:1.35;'" data-admin-link>Dashboard</a>
+        <a th:href="@{/admin/users}" th:style="${activeMenu == 'users'} ? 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:#2f56d9;font-size:15px;line-height:1.35;' : 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:transparent;font-size:15px;line-height:1.35;'" data-admin-link>Users</a>
+        <a th:href="@{/admin/subjects}" th:style="${activeMenu == 'subjects'} ? 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:#2f56d9;font-size:15px;line-height:1.35;' : 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:transparent;font-size:15px;line-height:1.35;'" data-admin-link>Subjects</a>
+        <a th:href="@{/admin/chapters}" th:style="${activeMenu == 'chapters'} ? 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:#2f56d9;font-size:15px;line-height:1.35;' : 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:transparent;font-size:15px;line-height:1.35;'" data-admin-link>Chapters</a>
+        <a th:href="@{/admin/lessons}" th:style="${activeMenu == 'lessons'} ? 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:#2f56d9;font-size:15px;line-height:1.35;' : 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:transparent;font-size:15px;line-height:1.35;'" data-admin-link>Lessons</a>
+        <a th:href="@{/admin/flashcards}" th:style="${activeMenu == 'flashcards'} ? 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:#2f56d9;font-size:15px;line-height:1.35;' : 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:transparent;font-size:15px;line-height:1.35;'" data-admin-link>Flashcards</a>
+        <a th:href="@{/admin/match-cards}" th:style="${activeMenu == 'matchcards'} ? 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:#2f56d9;font-size:15px;line-height:1.35;' : 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:transparent;font-size:15px;line-height:1.35;'" data-admin-link>Match Cards</a>
+        <a th:href="@{/admin/questions}" th:style="${activeMenu == 'quiz-questions'} ? 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:#2f56d9;font-size:15px;line-height:1.35;' : 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:transparent;font-size:15px;line-height:1.35;'" data-admin-link>Quiz Questions</a>
+        <a th:href="@{/admin/quiz-answers}" th:style="${activeMenu == 'quiz-answers'} ? 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:#2f56d9;font-size:15px;line-height:1.35;' : 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:transparent;font-size:15px;line-height:1.35;'" data-admin-link>Quiz Answers</a>
+        <a th:href="@{/admin/practices}" th:style="${activeMenu == 'practices'} ? 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:#2f56d9;font-size:15px;line-height:1.35;' : 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:transparent;font-size:15px;line-height:1.35;'" data-admin-link>Practices</a>
+        <a th:href="@{/admin/practice-questions}" th:style="${activeMenu == 'practice-questions'} ? 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:#2f56d9;font-size:15px;line-height:1.35;' : 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:transparent;font-size:15px;line-height:1.35;'" data-admin-link>Practice Questions</a>
+        <a th:href="@{/admin/practice-answers}" th:style="${activeMenu == 'practice-answers'} ? 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:#2f56d9;font-size:15px;line-height:1.35;' : 'display:block;color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:12px;background:transparent;font-size:15px;line-height:1.35;'" data-admin-link>Practice Answers</a>
+    </nav>
+
+    <form th:action="@{/admin/logout}" method="post" class="sidebar-logout" style="margin-top:auto;">
+        <button type="submit" style="width:100%;border:none;background:#ef4444;color:#ffffff;padding:10px 12px;border-radius:10px;cursor:pointer;">Logout</button>
+    </form>
+</aside>
+
+<script th:fragment="sidebar-script">
+    document.querySelectorAll('[data-admin-link]').forEach(link => {
+        link.addEventListener('click', event => {
+            const topDoc = window.top && window.top.document;
+            const frame = topDoc ? topDoc.getElementById('adminContentFrame') : null;
+            if (!frame) {
+                return;
+            }
+            event.preventDefault();
+            frame.src = link.href;
+            topDoc.querySelectorAll('.sidebar-nav a').forEach(item => item.classList.remove('active'));
+            const mirror = Array.from(topDoc.querySelectorAll('.sidebar-nav a')).find(item => item.href === link.href);
+            if (mirror) {
+                mirror.classList.add('active');
+            }
+        });
+    });
+</script>
 </body>
 </html>

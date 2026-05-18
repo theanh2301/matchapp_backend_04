@@ -10,7 +10,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class PracticeAnswerRequest {
-    @NotNull(message = "id cannot be null")
     private Integer id;
     @NotBlank(message = "content cannot be empty")
     private String content;

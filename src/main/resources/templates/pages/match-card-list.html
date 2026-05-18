@@ -1,269 +1,281 @@
 <!DOCTYPE html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
 <head>
-  <meta charset="UTF-8">
-  <title>Match Card Management</title>
-
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
-  <style>
-    #lessonDropdown { display: none; max-height: 200px; overflow-y: auto; }
-    #lessonDropdown.show { display: block; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Match Cards</title>
+    <style>
+        body { margin: 0; font-family: Segoe UI, sans-serif; background: #f5f7fb; color: #1f2937; }
+        .admin-shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+        .admin-sidebar { background: #0f172a; color: #fff; padding: 28px 18px; display: flex; flex-direction: column; gap: 18px; }
+        .content { padding: 24px; }
+        .toolbar, .search-card, .panel { background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 8px 24px rgba(15, 23, 42, .08); margin-bottom: 16px; }
+        .toolbar { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+        .toolbar-actions, .search-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        input, select, button { font: inherit; }
+        input, select { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; width: 100%; box-sizing: border-box; }
+        button, .btn-link { border: none; background: #2f56d9; color: #fff; padding: 10px 14px; border-radius: 10px; text-decoration: none; cursor: pointer; display: inline-block; }
+        .btn-muted { background: #475569; }
+        .btn-danger { background: #dc2626; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+        .pagination { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+        .pagination a { padding: 8px 12px; border-radius: 8px; background: #e2e8f0; text-decoration: none; color: #0f172a; }
+        .pagination a.active { background: #2f56d9; color: #fff; }
+        .pagination span { padding: 8px 12px; border-radius: 8px; background: #e2e8f0; color: #475569; }
+        .error { color: #b91c1c; margin-bottom: 12px; font-weight: 600; }
+        .lookup { position: relative; }
+        .lookup-menu { display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; max-height: 220px; overflow: auto; background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 16px 32px rgba(15, 23, 42, .16); z-index: 20; }
+        .lookup-menu.show { display: block; }
+        .lookup-item { padding: 9px 12px; cursor: pointer; }
+        .lookup-item:hover { background: #eff6ff; }
+        button:disabled { cursor: not-allowed; opacity: .75; }
+        dialog { border: none; border-radius: 18px; width: min(560px, calc(100vw - 24px)); padding: 0; box-shadow: 0 24px 60px rgba(15, 23, 42, .25); }
+        dialog::backdrop { background: rgba(15, 23, 42, .45); }
+        .modal-head, .modal-body, .modal-foot { padding: 18px 20px; }
+        .modal-head { border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+        .modal-foot { border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px; }
+        @media (max-width: 960px) { .admin-shell { grid-template-columns: 1fr; } }
+    </style>
 </head>
-
 <body>
-
-<div class="container mt-4">
-
-  <div class="d-flex justify-content-between mb-3">
-    <h3>Match Card Management</h3>
-
-    <div>
-      <button id="btnBulkDelete" class="btn btn-danger d-none" onclick="submitBulkDelete()">
-        Delete Selected
-      </button>
-
-      <a href="/admin/match-cards/export" class="btn btn-outline-secondary">Export</a>
-
-      <button class="btn btn-primary" onclick="openCreateModal()">
-        Create Pair
-      </button>
-    </div>
-  </div>
-
-  <div class="card mb-3">
-    <div class="card-body d-flex justify-content-between">
-
-      <form method="get" th:action="@{/admin/match-cards}" class="d-flex">
-        <div class="input-group">
-          <input type="text" name="keyword" th:value="${keyword}" class="form-control"
-                 placeholder="Search content...">
-          <button class="btn btn-primary">Search</button>
-
-          <a th:if="${keyword != null and !#strings.isEmpty(keyword)}"
-             th:href="@{/admin/match-cards}"
-             class="btn btn-outline-secondary">Reset</a>
-        </div>
-      </form>
-
-      <form action="/admin/match-cards/import" method="post" enctype="multipart/form-data">
-        <input type="file" name="file" required>
-        <button class="btn btn-success">Import</button>
-      </form>
-
-    </div>
-  </div>
-
-  <form id="bulkForm" action="/admin/match-cards/bulk-delete" method="post">
-
-    <table class="table table-bordered">
-      <thead>
-      <tr>
-        <th><input type="checkbox" id="selectAll"></th>
-        <th>Pair ID</th>
-        <th>Content 1</th>
-        <th>Content 2</th>
-        <th>XP</th>
-        <th>Lesson</th>
-        <th>Action</th>
-      </tr>
-      </thead>
-
-      <tbody>
-      <tr th:each="p : ${pairs.content}">
-        <td>
-          <input type="checkbox"
-                 name="selectedPairs"
-                 th:value="|${p.pairId}-${p.lessonId}|"
-                 class="row-checkbox">
-        </td>
-
-        <td th:text="${p.pairId}"></td>
-        <td th:text="${p.content1}"></td>
-        <td th:text="${p.content2}"></td>
-        <td th:text="${p.xpReward}"></td>
-        <td th:text="${p.lessonName}"></td>
-
-        <td>
-          <button type="button" class="btn btn-sm btn-primary"
-                  th:attr="onclick=|openEditModal(${p.pairId}, '${#strings.escapeJavaScript(p.content1)}', '${#strings.escapeJavaScript(p.content2)}', ${p.xpReward}, ${p.lessonId}, '${#strings.escapeJavaScript(p.lessonName)}')|">
-            Edit
-          </button>
-
-          <a th:href="@{/admin/match-cards/delete(pairId=${p.pairId}, lessonId=${p.lessonId})}"
-             class="btn btn-sm btn-danger"
-             onclick="return confirm('Delete?')">
-            Delete
-          </a>
-        </td>
-      </tr>
-
-      <tr th:if="${pairs.content.size() == 0}">
-        <td colspan="7" class="text-center">No data</td>
-      </tr>
-      </tbody>
-    </table>
-  </form>
-
-  <nav th:if="${pairs.totalPages > 1}">
-    <ul class="pagination justify-content-center">
-
-      <li class="page-item" th:classappend="${pairs.first} ? ' disabled'">
-        <a class="page-link"
-           th:href="@{/admin/match-cards(page=${pairs.number - 1}, keyword=${keyword})}">
-          Prev
-        </a>
-      </li>
-
-      <li class="page-item"
-          th:each="i : ${#numbers.sequence(0, pairs.totalPages - 1)}"
-          th:classappend="${pairs.number == i} ? ' active'">
-        <a class="page-link"
-           th:href="@{/admin/match-cards(page=${i}, keyword=${keyword})}"
-           th:text="${i + 1}"></a>
-      </li>
-
-      <li class="page-item" th:classappend="${pairs.last} ? ' disabled'">
-        <a class="page-link"
-           th:href="@{/admin/match-cards(page=${pairs.number + 1}, keyword=${keyword})}">
-          Next
-        </a>
-      </li>
-
-    </ul>
-  </nav>
-
-</div>
-
-<div class="modal fade" id="matchModal">
-  <div class="modal-dialog">
-    <div class="modal-content">
-
-      <form th:action="@{/admin/match-cards/save}" method="post" onsubmit="return validateForm()">
-
-        <div class="modal-header">
-          <h5 id="modalTitle">Create Pair</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-
-        <div class="modal-body">
-
-          <input type="number" name="pairId" id="pairId" class="form-control mb-2" required>
-
-          <input name="content1" id="content1" class="form-control mb-2" required>
-          <input name="content2" id="content2" class="form-control mb-2" required>
-
-          <input type="number" name="xpReward" id="xpReward" class="form-control mb-2" required>
-
-          <input type="text" id="lessonSearch" class="form-control mb-2" required>
-          <input type="hidden" name="lessonId" id="lessonId">
-
-          <div id="lessonDropdown" class="dropdown-menu w-100">
-            <div class="dropdown-item"
-                 th:each="l : ${lessons}"
-                 th:attr="data-id=${l.id}"
-                 th:text="|[${l.id}] ${l.lessonName}|"
-                 onclick="selectLesson(this)">
+<div class="admin-shell">
+    <div th:replace="~{admin/fragments/sidebar :: sidebar(activeMenu=${activeMenu})}"></div>
+    <main class="content">
+        <section class="toolbar">
+            <div>
+                <h1>Match Cards</h1>
+                <div>Them, sua, xoa theo cap de tranh the le.</div>
             </div>
-          </div>
+            <div class="toolbar-actions">
+                <form id="bulkDeleteForm" th:action="@{/admin/match-cards/bulk-delete}" method="post"></form>
+                <button type="button" class="btn-danger" onclick="submitBulkDelete()">Xoa nhieu</button>
+                <a class="btn-link btn-muted" th:href="@{/admin/match-cards/export}">Export</a>
+                <form th:action="@{/admin/match-cards/import}" method="post" enctype="multipart/form-data" class="toolbar-actions js-import-form">
+            <input type="file" name="file" accept=".xlsx" required style="max-width:220px;">
+                    <button type="submit" class="btn-muted" data-loading-text="Dang import...">Import</button>
+                </form>
+                <button type="button" onclick="openCreate()">Them cap the</button>
+            </div>
+        </section>
 
-        </div>
+        <section class="search-card">
+            <div th:if="${message}" class="answer-badge ok" style="display:inline-flex; margin-bottom:12px;" th:text="${message}"></div>
+            <div th:if="${error}" class="error" th:text="${error}"></div>
+            <form class="search-row" method="get" th:action="@{/admin/match-cards}">
+                <input type="text" name="keyword" th:value="${keyword}" placeholder="Tim theo noi dung hoac bai hoc">
+                <button type="submit">Tim kiem</button>
+            </form>
+        </section>
 
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button class="btn btn-primary">Save</button>
-        </div>
+        <section class="panel">
+            <table>
+                <thead>
+                <tr>
+                    <th><input type="checkbox" id="checkAll"></th>
+                    <th>Pair ID</th>
+                    <th>The 1</th>
+                    <th>The 2</th>
+                    <th>Lesson</th>
+                    <th>XP</th>
+                    <th>Hanh dong</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:if="${#lists.isEmpty(pairs.content)}">
+                    <td colspan="7">Khong co du lieu.</td>
+                </tr>
+                <tr th:each="pair : ${pairs.content}">
+                    <td><input type="checkbox" class="row-check" th:value="|${pair.pairId}-${pair.lessonId}|"></td>
+                    <td th:text="${pair.pairId}"></td>
+                    <td th:text="${pair.content1}"></td>
+                    <td th:text="${pair.content2}"></td>
+                    <td th:text="${pair.lessonName}"></td>
+                    <td th:text="${pair.xpReward}"></td>
+                    <td>
+                        <button type="button"
+                                th:attr="data-pair=${pair.pairId},data-content1=${pair.content1},data-content2=${pair.content2},data-xp=${pair.xpReward},data-lesson=${pair.lessonId}"
+                                onclick="openEdit(this)">
+                            Sua
+                        </button>
+                        <form th:action="@{/admin/match-cards/delete}" method="post" style="display:inline-block;">
+                            <input type="hidden" name="pairId" th:value="${pair.pairId}">
+                            <input type="hidden" name="lessonId" th:value="${pair.lessonId}">
+                            <button type="submit" class="btn-danger" onclick="return confirm('Xoa cap the nay?')">Xoa</button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
 
-      </form>
-
-    </div>
-  </div>
+            <div class="pagination" th:if="${pairs.totalPages > 1}">
+                <a th:if="${!pairs.first}" th:href="@{/admin/match-cards(page=0, keyword=${keyword})}">First</a>
+                <a th:if="${!pairs.first}" th:href="@{/admin/match-cards(page=${pairs.number - 1}, keyword=${keyword})}">Prev</a>
+                <th:block th:each="i : ${#numbers.sequence(0, pairs.totalPages - 1)}">
+                    <span th:if="${i == 1 and pairs.number > 3}">...</span>
+                    <a th:if="${i == 0 or i == pairs.totalPages - 1 or (i >= pairs.number - 2 and i <= pairs.number + 2)}"
+                       th:href="@{/admin/match-cards(page=${i}, keyword=${keyword})}"
+                       th:text="${i + 1}"
+                       th:classappend="${pairs.number == i ? ' active' : ''}"></a>
+                    <span th:if="${i == pairs.totalPages - 2 and pairs.number < pairs.totalPages - 4}">...</span>
+                </th:block>
+                <a th:if="${!pairs.last}" th:href="@{/admin/match-cards(page=${pairs.number + 1}, keyword=${keyword})}">Next</a>
+                <a th:if="${!pairs.last}" th:href="@{/admin/match-cards(page=${pairs.totalPages - 1}, keyword=${keyword})}">Last</a>
+            </div>
+        </section>
+    </main>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<dialog id="matchDialog">
+    <form th:action="@{/admin/match-cards/save}" method="post">
+        <div class="modal-head">
+            <h2 id="dialogTitle">Them cap the</h2>
+            <button type="button" class="btn-muted" onclick="closeDialog()">Dong</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" name="isEdit" id="isEdit" value="false">
+            <label>Pair ID</label>
+            <input type="number" name="pairId" id="pairId" placeholder="De trong de he thong tu tao">
+            <label style="margin-top: 12px; display: block;">The 1</label>
+            <input type="text" name="content1" id="content1" required>
+            <label style="margin-top: 12px; display: block;">The 2</label>
+            <input type="text" name="content2" id="content2" required>
+            <label style="margin-top: 12px; display: block;">XP</label>
+            <input type="number" name="xpReward" id="xpReward" min="0" required>
+            <label style="margin-top: 12px; display: block;">Lesson</label>
+            <div class="lookup">
+                <input type="text" id="lessonSearch" placeholder="Go id hoac ten lesson..." autocomplete="off" required>
+                <input type="hidden" name="lessonId" id="lessonId" required>
+                <div class="lookup-menu" id="lessonLookup">
+                    <div class="lookup-item"
+                         th:each="lesson : ${lessons}"
+                         th:attr="data-id=${lesson.id},data-name=${lesson.lessonName}"
+                         th:text="|[${lesson.id}] ${lesson.lessonName}|"
+                         onclick="selectLookupItem(this, 'lesson')"></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn-muted" onclick="closeDialog()">Huy</button>
+            <button type="submit">Luu</button>
+        </div>
+    </form>
+</dialog>
 
 <script>
-  const modal = new bootstrap.Modal(document.getElementById('matchModal'));
+    const dialog = document.getElementById('matchDialog');
 
-  const modalTitle = document.getElementById('modalTitle');
-  const pairId = document.getElementById('pairId');
-  const content1 = document.getElementById('content1');
-  const content2 = document.getElementById('content2');
-  const xpReward = document.getElementById('xpReward');
-  const lessonId = document.getElementById('lessonId');
-  const lessonSearch = document.getElementById('lessonSearch');
-  const lessonDropdown = document.getElementById('lessonDropdown');
-  const selectAll = document.getElementById('selectAll');
-  const btnBulkDelete = document.getElementById('btnBulkDelete');
-  const bulkForm = document.getElementById('bulkForm');
-
-  function openCreateModal() {
-    modalTitle.innerText = "Create Pair";
-
-    pairId.value = '';
-    content1.value = '';
-    content2.value = '';
-    xpReward.value = '';
-    lessonId.value = '';
-    lessonSearch.value = '';
-
-    modal.show();
-  }
-
-  function openEditModal(id, c1, c2, xp, lId, lName) {
-    modalTitle.innerText = "Edit Pair";
-
-    pairId.value = id;
-    content1.value = c1;
-    content2.value = c2;
-    xpReward.value = xp;
-    lessonId.value = lId;
-    lessonSearch.value = `[${lId}] ${lName}`;
-
-    modal.show();
-  }
-
-  function selectLesson(el) {
-    lessonId.value = el.dataset.id;
-    lessonSearch.value = el.innerText;
-    lessonDropdown.classList.remove('show');
-  }
-
-  lessonSearch.onfocus = () => lessonDropdown.classList.add('show');
-
-  function validateForm() {
-    if (!lessonId.value) {
-      alert("Please select lesson");
-      return false;
+    function openCreate() {
+        document.getElementById('dialogTitle').textContent = 'Them cap the';
+        document.getElementById('isEdit').value = 'false';
+        document.getElementById('pairId').value = '';
+        document.getElementById('pairId').readOnly = false;
+        document.getElementById('content1').value = '';
+        document.getElementById('content2').value = '';
+        document.getElementById('xpReward').value = '';
+        document.getElementById('lessonId').value = '';
+        document.getElementById('lessonSearch').value = '';
+        dialog.showModal();
     }
 
-    if (content1.value.trim() === content2.value.trim()) {
-      alert("2 contents must be different");
-      return false;
+    function openEdit(button) {
+        document.getElementById('dialogTitle').textContent = 'Sua cap the';
+        document.getElementById('isEdit').value = 'true';
+        document.getElementById('pairId').value = button.dataset.pair;
+        document.getElementById('pairId').readOnly = true;
+        document.getElementById('content1').value = button.dataset.content1;
+        document.getElementById('content2').value = button.dataset.content2;
+        document.getElementById('xpReward').value = button.dataset.xp;
+        setLookupValue('lesson', button.dataset.lesson);
+        dialog.showModal();
     }
 
-    return true;
-  }
+    function closeDialog() { dialog.close(); }
 
-  selectAll.onchange = () => {
-    document.querySelectorAll('.row-checkbox')
-            .forEach(cb => cb.checked = selectAll.checked);
-  };
-
-  document.querySelectorAll('.row-checkbox').forEach(cb => {
-    cb.onchange = () => {
-      const anyChecked = document.querySelectorAll('.row-checkbox:checked').length > 0;
-      btnBulkDelete.classList.toggle('d-none', !anyChecked);
-    };
-  });
-
-  function submitBulkDelete() {
-    if (confirm("Delete selected pairs?")) {
-      bulkForm.submit();
+    function submitBulkDelete() {
+        const tokens = Array.from(document.querySelectorAll('.row-check:checked')).map(el => el.value);
+        if (!tokens.length) { alert('Chua chon cap the nao.'); return; }
+        if (!confirm('Xoa cac cap the da chon?')) { return; }
+        const form = document.getElementById('bulkDeleteForm');
+        form.innerHTML = '';
+        tokens.forEach(token => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'selectedPairs';
+            input.value = token;
+            form.appendChild(input);
+        });
+        form.submit();
     }
-  }
+
+    document.getElementById('checkAll').addEventListener('change', event => {
+        document.querySelectorAll('.row-check').forEach(el => el.checked = event.target.checked);
+    });
+
+    function setLookupValue(prefix, id) {
+        const item = document.querySelector(`#${prefix}Lookup .lookup-item[data-id="${id}"]`);
+        document.getElementById(`${prefix}Id`).value = id || '';
+        document.getElementById(`${prefix}Search`).value = item ? item.textContent.trim() : '';
+    }
+
+    function selectLookupItem(item, prefix) {
+        document.getElementById(`${prefix}Id`).value = item.dataset.id;
+        document.getElementById(`${prefix}Search`).value = item.textContent.trim();
+        document.getElementById(`${prefix}Lookup`).classList.remove('show');
+    }
+
+    document.querySelectorAll('.lookup input[type="text"]').forEach(input => {
+        input.addEventListener('focus', () => input.parentElement.querySelector('.lookup-menu').classList.add('show'));
+        input.addEventListener('input', () => {
+            document.getElementById(input.id.replace('Search', 'Id')).value = '';
+            const keyword = input.value.toLowerCase();
+            input.parentElement.querySelectorAll('.lookup-item').forEach(item => {
+                item.style.display = item.textContent.toLowerCase().includes(keyword) ? 'block' : 'none';
+            });
+            input.parentElement.querySelector('.lookup-menu').classList.add('show');
+        });
+    });
+
+    document.addEventListener('click', event => {
+        if (!event.target.closest('.lookup')) {
+            document.querySelectorAll('.lookup-menu').forEach(menu => menu.classList.remove('show'));
+        }
+    });
+
+    document.querySelectorAll('.js-import-form').forEach(form => {
+        form.addEventListener('submit', () => {
+            const button = form.querySelector('button[type="submit"]');
+            if (button) {
+                button.disabled = true;
+                button.textContent = button.dataset.loadingText || 'Dang xu ly...';
+            }
+        });
+    });
+
+    dialog.querySelector('form').addEventListener('submit', event => {
+        const content1 = document.getElementById('content1').value.trim();
+        const content2 = document.getElementById('content2').value.trim();
+        if (!content1 || !content2) {
+            alert('Hai the khong duoc de trong.');
+            event.preventDefault();
+            return;
+        }
+        if (content1.toLowerCase() === content2.toLowerCase()) {
+            alert('Hai the trong mot cap phai khac nhau.');
+            event.preventDefault();
+            return;
+        }
+        if (!document.getElementById('lessonId').value) {
+            alert('Vui long chon lesson tu danh sach goi y.');
+            event.preventDefault();
+        }
+    });
+
+    if (window.self !== window.top) {
+        document.querySelector('.admin-sidebar')?.remove();
+        const shell = document.querySelector('.admin-shell');
+        if (shell) shell.style.gridTemplateColumns = '1fr';
+    }
 </script>
-
 </body>
 </html>

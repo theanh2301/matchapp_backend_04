@@ -3,15 +3,22 @@ package com.company.mathapp_backend_04.repository;
 import com.company.mathapp_backend_04.entity.Practice;
 import com.company.mathapp_backend_04.model.dto.PracticeOverviewDTO;
 import com.company.mathapp_backend_04.model.enums.PracticeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface PracticeRepository extends JpaRepository<Practice, Integer> {
+
+    Page<Practice> findByTitleContainingIgnoreCase(String keyword, Pageable pageable);
+
+    Optional<Practice> findByTitleIgnoreCaseAndPracticeTypeAndGrade_Id(String title, PracticeType practiceType, Integer gradeId);
 
     Integer countByPracticeTypeAndGrade_Id(PracticeType practiceType, Integer gradeId);
 

@@ -19,7 +19,6 @@ public class Subject {
     Integer id;
     String subjectName;
     String icon;
-    Integer subjectClass;
 
     @ManyToOne
     @JoinColumn(name = "grade_id")

@@ -18,95 +18,146 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class MatchCardService {
+
     private final MatchCardRepository matchCardRepository;
     private final LessonRepository lessonRepository;
 
-    public List<MatchCardResponse> getMatchCard(Integer id) {
-        List<MatchCard> getMatchCard = matchCardRepository.findByLessonId(id);
-
-        return getMatchCard.stream().map(matchCard -> new MatchCardResponse(
-                matchCard.getId(),
-                matchCard.getPairId(),
-                matchCard.getContent(),
-                matchCard.getXpReward()
-        )).toList();
-    }
-
-    public List<MatchCardPairResponse> getMatchCardPair(Integer lessonId) {
-
+    public List<MatchCardResponse> getMatchCard(Integer lessonId) {
         List<MatchCard> cards = matchCardRepository.findByLessonId(lessonId);
 
         return cards.stream()
-                .collect(Collectors.groupingBy(MatchCard::getPairId))
-                .entrySet()
-                .stream()
-                .map(entry -> {
-                    List<MatchCard> pairCards = entry.getValue();
-
-                    MatchCard c1 = pairCards.get(0);
-                    MatchCard c2 = pairCards.size() > 1 ? pairCards.get(1) : null;
-
-                    return new MatchCardPairResponse(
-                            entry.getKey(),
-                            c1.getContent(),
-                            c2 != null ? c2.getContent() : null,
-                            c1.getXpReward(),
-                            lessonId,
-                            c1.getLesson().getLessonName()
-                    );
-                })
+                .map(matchCard -> new MatchCardResponse(
+                        matchCard.getId(),
+                        matchCard.getPairId(),
+                        matchCard.getContent(),
+                        matchCard.getXpReward()
+                ))
                 .toList();
+    }
+
+    public Page<MatchCardPairResponse> getAllCardPairs(String keyword, Pageable pageable) {
+        List<MatchCard> cards = matchCardRepository.findAll();
+
+        Map<String, List<MatchCard>> grouped = cards.stream()
+                .filter(card -> card.getLesson() != null)
+                .filter(card -> card.getPairId() != null)
+                .filter(card -> card.getContent() != null)
+                .sorted(Comparator
+                        .comparing((MatchCard c) -> c.getLesson().getId())
+                        .thenComparing(MatchCard::getPairId)
+                        .thenComparing(MatchCard::getId))
+                .collect(Collectors.groupingBy(
+                        card -> card.getLesson().getId() + "_" + card.getPairId(),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+
+        String normalizedKeyword = keyword == null ? "" : keyword.trim().toLowerCase();
+
+        List<MatchCardPairResponse> allPairs = new ArrayList<>();
+
+        for (List<MatchCard> pairCards : grouped.values()) {
+            if (pairCards.size() != 2) {
+                continue;
+            }
+
+            MatchCard c1 = pairCards.get(0);
+            MatchCard c2 = pairCards.get(1);
+
+            boolean matchKeyword = normalizedKeyword.isBlank()
+                    || c1.getContent().toLowerCase().contains(normalizedKeyword)
+                    || c2.getContent().toLowerCase().contains(normalizedKeyword)
+                    || c1.getLesson().getLessonName().toLowerCase().contains(normalizedKeyword);
+
+            if (!matchKeyword) {
+                continue;
+            }
+
+            allPairs.add(new MatchCardPairResponse(
+                    c1.getPairId(),
+                    c1.getContent(),
+                    c2.getContent(),
+                    c1.getXpReward(),
+                    c1.getLesson().getId(),
+                    c1.getLesson().getLessonName()
+            ));
+        }
+
+        if (pageable.isUnpaged()) {
+            return new PageImpl<>(allPairs);
+        }
+
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), allPairs.size());
+
+        List<MatchCardPairResponse> pageContent =
+                start >= allPairs.size() ? List.of() : allPairs.subList(start, end);
+
+        return new PageImpl<>(pageContent, pageable, allPairs.size());
+    }
+
+    public List<MatchCardPairResponse> getAllCardPairsForExport() {
+        return getAllCardPairs(null, Pageable.unpaged()).getContent();
+    }
+
+    public Integer generatePairId(Integer lessonId) {
+        Lesson lesson = lessonRepository.findById(lessonId)
+                .orElseThrow(() -> new NotFoundException("Lesson not found"));
+
+        int pairId;
+        do {
+            pairId = ThreadLocalRandom.current().nextInt(10000, 100000);
+        } while (matchCardRepository.existsByPairIdAndLesson(pairId, lesson));
+
+        return pairId;
     }
 
     @Transactional
     public void addMatchCardPair(MatchCardPairRequest request) {
-
         Lesson lesson = lessonRepository.findById(request.getLessonId())
                 .orElseThrow(() -> new BadRequestException("Lesson not found"));
 
-        // 1. Kiểm tra đã tồn tại pairId chưa
-        List<MatchCard> existingCards = matchCardRepository
-                .findByPairIdAndLesson(request.getPairId(), lesson);
+        String content1 = normalizeContent(request.getContent1());
+        String content2 = normalizeContent(request.getContent2());
 
-        if (existingCards.size() >= 2) {
-            throw new BadRequestException("This pairId already has 2 cards");
+        validatePairContent(content1, content2);
+
+        if (request.getPairId() == null) {
+            request.setPairId(generatePairId(request.getLessonId()));
         }
 
-        // 2. Không cho content trùng nhau
-        if (request.getContent1().equalsIgnoreCase(request.getContent2())) {
-            throw new BadRequestException("Two cards in a pair must be different");
+        List<MatchCard> existingCards = matchCardRepository.findByPairIdAndLesson(request.getPairId(), lesson);
+        if (!existingCards.isEmpty()) {
+            throw new ConflictException("Pair ID already exists in this lesson");
         }
 
-        // 3. Không cho trùng content trong lesson
-        boolean content1Exists = matchCardRepository
-                .existsByContentAndLesson(request.getContent1(), lesson);
-
-        boolean content2Exists = matchCardRepository
-                .existsByContentAndLesson(request.getContent2(), lesson);
+        boolean content1Exists = matchCardRepository.existsByContentAndLesson(content1, lesson);
+        boolean content2Exists = matchCardRepository.existsByContentAndLesson(content2, lesson);
 
         if (content1Exists || content2Exists) {
-            throw new BadRequestException("Content already exists in this lesson");
+            throw new ConflictException("Content already exists in this lesson");
         }
 
-        // 4. Tạo 2 thẻ
         MatchCard card1 = MatchCard.builder()
                 .pairId(request.getPairId())
-                .content(request.getContent1())
+                .content(content1)
                 .xpReward(request.getXpReward())
                 .lesson(lesson)
                 .build();
 
         MatchCard card2 = MatchCard.builder()
                 .pairId(request.getPairId())
-                .content(request.getContent2())
+                .content(content2)
                 .xpReward(request.getXpReward())
                 .lesson(lesson)
                 .build();
@@ -116,23 +167,26 @@ public class MatchCardService {
 
     @Transactional
     public void updateMatchCardPair(MatchCardPairRequest request) {
-
         Lesson lesson = lessonRepository.findById(request.getLessonId())
                 .orElseThrow(() -> new NotFoundException("Lesson not found"));
 
-        List<MatchCard> cards = matchCardRepository
-                .findByPairIdAndLesson(request.getPairId(), lesson);
+        if (request.getPairId() == null) {
+            throw new BadRequestException("Pair ID is required for update");
+        }
+
+        List<MatchCard> cards = matchCardRepository.findByPairIdAndLesson(request.getPairId(), lesson)
+                .stream()
+                .sorted(Comparator.comparing(MatchCard::getId))
+                .toList();
 
         if (cards.size() != 2) {
             throw new BadRequestException("Pair must have exactly 2 cards to update");
         }
 
-        String content1 = request.getContent1().trim();
-        String content2 = request.getContent2().trim();
+        String content1 = normalizeContent(request.getContent1());
+        String content2 = normalizeContent(request.getContent2());
 
-        if (content1.equalsIgnoreCase(content2)) {
-            throw new BadRequestException("Two cards must have different content");
-        }
+        validatePairContent(content1, content2);
 
         boolean content1Exists = matchCardRepository
                 .existsByContentAndLessonAndPairIdNot(content1, lesson, request.getPairId());
@@ -146,20 +200,18 @@ public class MatchCardService {
 
         List<String> oldContents = cards.stream()
                 .map(MatchCard::getContent)
-                .map(String::trim)
+                .map(this::normalizeContent)
                 .toList();
 
-        boolean isSame =
-                oldContents.contains(content1) &&
-                        oldContents.contains(content2);
+        boolean sameContents = oldContents.contains(content1) && oldContents.contains(content2);
+        boolean sameXp = cards.stream().allMatch(card -> card.getXpReward().equals(request.getXpReward()));
 
-        if (isSame) {
+        if (sameContents && sameXp) {
             throw new BadRequestException("No changes detected");
         }
 
         cards.get(0).setContent(content1);
         cards.get(1).setContent(content2);
-
         cards.get(0).setXpReward(request.getXpReward());
         cards.get(1).setXpReward(request.getXpReward());
 
@@ -168,69 +220,63 @@ public class MatchCardService {
 
     @Transactional
     public void deleteMatchCardPair(Integer pairId, Integer lessonId) {
-
         Lesson lesson = lessonRepository.findById(lessonId)
                 .orElseThrow(() -> new NotFoundException("Lesson not found"));
 
-        List<MatchCard> cards = matchCardRepository
-                .findByPairIdAndLesson(pairId, lesson);
+        List<MatchCard> cards = matchCardRepository.findByPairIdAndLesson(pairId, lesson);
 
-        if (cards.size() != 2) {
-            throw new BadRequestException("Pair must have exactly 2 cards");
+        if (cards.isEmpty()) {
+            throw new NotFoundException("Match card pair not found");
         }
 
         matchCardRepository.deleteAll(cards);
     }
 
-    public Page<MatchCardPairResponse> getAllCards(String keyword, Pageable pageable) {
-
-        Page<MatchCard> page;
-
-        if (keyword == null || keyword.isBlank()) {
-            page = matchCardRepository.findAll(pageable);
-        } else {
-            page = matchCardRepository
-                    .findByContentContainingIgnoreCase(keyword, pageable);
-        }
-
-        Map<Integer, List<MatchCard>> grouped = page.getContent().stream()
-                .collect(Collectors.groupingBy(MatchCard::getPairId));
-
-        List<MatchCardPairResponse> result = grouped.values().stream()
-                .filter(list -> list.size() == 2)
-                .map(list -> {
-                    MatchCard c1 = list.get(0);
-                    MatchCard c2 = list.get(1);
-
-                    return new MatchCardPairResponse(
-                            c1.getPairId(),
-                            c1.getContent(),
-                            c2.getContent(),
-                            c1.getXpReward(),
-                            c1.getLesson().getId(),
-                            c1.getLesson().getLessonName()
-                    );
-                })
-                .toList();
-
-        return new PageImpl<>(result, pageable, result.size());
-    }
-
     @Transactional
     public void deleteMultiple(List<Integer> pairIds, Integer lessonId) {
-
         Lesson lesson = lessonRepository.findById(lessonId)
                 .orElseThrow(() -> new NotFoundException("Lesson not found"));
 
+        if (pairIds == null || pairIds.isEmpty()) {
+            return;
+        }
+
         for (Integer pairId : pairIds) {
-
-            List<MatchCard> cards =
-                    matchCardRepository.findByPairIdAndLesson(pairId, lesson);
-
-            if (cards.size() == 2) {
+            List<MatchCard> cards = matchCardRepository.findByPairIdAndLesson(pairId, lesson);
+            if (!cards.isEmpty()) {
                 matchCardRepository.deleteAll(cards);
             }
         }
     }
 
+    @Transactional
+    public void deleteMultipleByTokens(List<String> selections) {
+        if (selections == null || selections.isEmpty()) {
+            return;
+        }
+
+        for (String token : selections) {
+            if (token == null || !token.contains("-")) {
+                continue;
+            }
+            String[] parts = token.split("-", 2);
+            Integer pairId = Integer.valueOf(parts[0]);
+            Integer lessonId = Integer.valueOf(parts[1]);
+            deleteMatchCardPair(pairId, lessonId);
+        }
+    }
+
+    private void validatePairContent(String content1, String content2) {
+        if (content1.isBlank() || content2.isBlank()) {
+            throw new BadRequestException("Content cannot be blank");
+        }
+
+        if (content1.equalsIgnoreCase(content2)) {
+            throw new BadRequestException("Two cards in a pair must be different");
+        }
+    }
+
+    private String normalizeContent(String content) {
+        return content == null ? "" : content.trim();
+    }
 }

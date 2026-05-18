@@ -4,5 +4,6 @@ import java.time.LocalDate;
 
 public interface XpByDateProjection {
     LocalDate getDate();
-    Integer getTotalXp();
+
+    Long getTotalXp();
 }

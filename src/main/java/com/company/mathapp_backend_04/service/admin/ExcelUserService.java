@@ -25,14 +25,17 @@ public class ExcelUserService {
     private final ExcelUserProcessService excelUserProcessService;
 
 
-    /*public ImportResult importExcel(MultipartFile file) {
+    public ImportResult importExcel(MultipartFile file) {
         try {
+            if (file == null || file.isEmpty()) {
+                throw new RuntimeException("Please select an Excel file");
+            }
             InputStream is = file.getInputStream();
-            return excelUserProcessService.processImport(is);
+            return excelUserProcessService.processImport(is).join();
         } catch (Exception e) {
             throw new RuntimeException("Import failed: " + e.getMessage());
         }
-    }*/
+    }
 
     public ByteArrayInputStream exportExcel() {
         try (Workbook workbook = new XSSFWorkbook()) {

@@ -1,6 +1,7 @@
 package com.company.mathapp_backend_04.rest;
 
 import com.company.mathapp_backend_04.model.request.PracticeQuestionRequest;
+import com.company.mathapp_backend_04.model.enums.Difficulty;
 import com.company.mathapp_backend_04.model.response.ApiResponse;
 import com.company.mathapp_backend_04.model.response.PracticeQuestionResponse;
 import com.company.mathapp_backend_04.service.PracticeQuestionService;
@@ -27,6 +28,29 @@ public class PracticeQuestionApi {
         ApiResponse<List<PracticeQuestionResponse>> response = new ApiResponse<>(
                 200,
                 "Get practice card successfully",
+                questions
+        );
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{practiceId}/ai-generated")
+    public ResponseEntity<ApiResponse<List<PracticeQuestionResponse>>> getAiPracticeQuestions(
+            @PathVariable Integer practiceId,
+            @RequestParam Integer userId,
+            @RequestParam(required = false) Difficulty difficulty,
+            @RequestParam(required = false, defaultValue = "10") Integer limit
+    ) {
+        List<PracticeQuestionResponse> questions = practiceQuestionService.getAiPracticeQuestions(
+                practiceId,
+                userId,
+                difficulty,
+                limit
+        );
+
+        ApiResponse<List<PracticeQuestionResponse>> response = new ApiResponse<>(
+                200,
+                "Get AI personalized practice questions successfully",
                 questions
         );
 

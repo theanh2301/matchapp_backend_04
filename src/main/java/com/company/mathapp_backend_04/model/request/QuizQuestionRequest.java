@@ -2,6 +2,7 @@ package com.company.mathapp_backend_04.model.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -23,5 +24,6 @@ public class QuizQuestionRequest {
     Integer lessonId;
 
     @NotNull(message = "answer cannot be null")
+    @Valid
     List<QuizAnswerRequest> answers;
 }

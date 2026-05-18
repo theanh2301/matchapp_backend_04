@@ -15,6 +15,8 @@ import java.util.List;
 @Repository
 public interface MatchCardRepository extends JpaRepository<MatchCard, Integer> {
 
+    boolean existsByLessonId(Integer lessonId);
+
     List<MatchCard> findByLessonId(Integer id);
 
     List<MatchCard> findByPairIdAndLesson(Integer pairId, Lesson lesson);
@@ -24,4 +26,6 @@ public interface MatchCardRepository extends JpaRepository<MatchCard, Integer> {
     boolean existsByContentAndLessonAndPairIdNot(String content1, Lesson lesson, @NotNull(message = "pairId cannot be null") Integer pairId);
 
     Page<MatchCard> findByContentContainingIgnoreCase(String keyword, Pageable pageable);
+
+    boolean existsByPairIdAndLesson(Integer pairId, Lesson lesson);
 }

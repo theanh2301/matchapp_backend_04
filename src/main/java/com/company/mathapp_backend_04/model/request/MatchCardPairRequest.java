@@ -13,7 +13,6 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class MatchCardPairRequest {
-    @NotNull(message = "pairId cannot be null")
     Integer pairId;
 
     @NotBlank(message = "content1 cannot be empty")

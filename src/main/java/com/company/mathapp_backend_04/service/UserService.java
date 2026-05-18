@@ -2,105 +2,107 @@ package com.company.mathapp_backend_04.service;
 
 import com.company.mathapp_backend_04.entity.Grade;
 import com.company.mathapp_backend_04.entity.User;
-import com.company.mathapp_backend_04.entity.UserStat;
 import com.company.mathapp_backend_04.exception.BadRequestException;
+import com.company.mathapp_backend_04.exception.ConflictException;
+import com.company.mathapp_backend_04.exception.NotFoundException;
+import com.company.mathapp_backend_04.model.dto.UserLearningProfileProjection;
 import com.company.mathapp_backend_04.model.enums.Role;
 import com.company.mathapp_backend_04.model.request.LoginRequest;
 import com.company.mathapp_backend_04.model.request.RegisterRequest;
 import com.company.mathapp_backend_04.model.request.UpdateUserInfoRequest;
 import com.company.mathapp_backend_04.model.response.LoginResponse;
 import com.company.mathapp_backend_04.model.response.ProfileResponse;
+import com.company.mathapp_backend_04.model.response.RegisterResponse;
 import com.company.mathapp_backend_04.model.response.UserInfoResponse;
 import com.company.mathapp_backend_04.repository.GradeRepository;
 import com.company.mathapp_backend_04.repository.UserRepository;
 import com.company.mathapp_backend_04.repository.UserStatRepository;
 import com.company.mathapp_backend_04.service.interface_service.DailyChallengeService;
 import com.company.mathapp_backend_04.service.interface_service.UserStatService;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Objects;
-import java.util.Optional;
-
 
 @Service
 @RequiredArgsConstructor
 public class UserService {
+
+    private static final String EMAIL_REGEX = "^[A-Za-z0-9+_.-]+@(.+)$";
+    private static final String PHONE_REGEX = "\\d{10}";
+
     private final UserRepository userRepository;
-    private final BCryptPasswordEncoder bCryptPasswordEncoder = new BCryptPasswordEncoder();
     private final GradeRepository gradeRepository;
     private final JwtService jwtService;
     private final UserStatService userStatService;
     private final UserStatRepository userStatRepository;
     private final DailyChallengeService dailyChallengeService;
+    private final BCryptPasswordEncoder bCryptPasswordEncoder = new BCryptPasswordEncoder();
 
-    public User register(RegisterRequest registerRequest) {
-        Grade grade = gradeRepository.findById(registerRequest.getGradeId())
-                .orElseThrow(() -> new BadRequestException("Grade not found"));
-
-        Optional<User> existingUser = userRepository.findByEmail(registerRequest.getEmail());
-        if (existingUser.isPresent()) {
-            throw new BadRequestException("Email already in use");
+    @Transactional
+    public RegisterResponse register(RegisterRequest registerRequest) {
+        if (registerRequest == null) {
+            throw new BadRequestException("Register request must not be null");
         }
 
-        if (!Objects.equals(
-                registerRequest.getPassword(),
-                registerRequest.getConfirmPassword()
-        )) {
+        Grade grade = gradeRepository.findById(registerRequest.getGradeId())
+                .orElseThrow(() -> new NotFoundException("Grade not found"));
+
+        String email = normalizeEmail(registerRequest.getEmail());
+        if (userRepository.existsByEmail(email)) {
+            throw new ConflictException("Email already in use");
+        }
+
+        String password = normalizeRequiredText(registerRequest.getPassword(), "Password");
+        String confirmPassword = normalizeRequiredText(registerRequest.getConfirmPassword(), "Confirm password");
+        if (!Objects.equals(password, confirmPassword)) {
             throw new BadRequestException("Passwords do not match");
         }
 
         User user = User.builder()
-                .email(registerRequest.getEmail())
-                .fullName(registerRequest.getFullName())
+                .email(email)
+                .fullName(normalizeRequiredText(registerRequest.getFullName(), "Full name"))
                 .grade(grade)
-                .dob(registerRequest.getDob())
-                .phone(registerRequest.getPhone())
+                .dob(validateOptionalDateOfBirth(registerRequest.getDob()))
+                .phone(normalizeOptionalPhone(registerRequest.getPhone()))
                 .role(Role.USER)
-                .password(bCryptPasswordEncoder.encode(registerRequest.getPassword()))
+                .password(bCryptPasswordEncoder.encode(password))
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .isPremium(false)
                 .build();
 
-        userStatService.createUserStat(user);
+        User savedUser = userRepository.save(user);
+        userStatService.createUserStat(savedUser);
 
-        return userRepository.save(user);
+        return RegisterResponse.builder()
+                .userId(savedUser.getId())
+                .fullName(savedUser.getFullName())
+                .email(savedUser.getEmail())
+                .gradeId(savedUser.getGrade().getId())
+                .gradeName(savedUser.getGrade().getGradeName())
+                .role(savedUser.getRole())
+                .isPremium(savedUser.getIsPremium())
+                .createdAt(savedUser.getCreatedAt())
+                .build();
     }
 
-    /*public UserResponse login(LoginRequest loginRequest) {
-        User user = userRepository.findByEmail(loginRequest.getEmail())
-                .orElseThrow(() -> new BadRequestException("Email not found"));
-
-        if (!bCryptPasswordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Password is incorrect");
+    public LoginResponse login(LoginRequest request) {
+        if (request == null) {
+            throw new BadRequestException("Login request must not be null");
         }
 
-        UserResponse response = new UserResponse();
-        response.setFullName(user.getFullName());
-        response.setEmail(user.getEmail());
-        response.setPhone(user.getPhone());
-        response.setDob(user.getDob());
-        response.setIsPremium(user.getIsPremium());
-        response.setRole(user.getRole());
-        response.setGrade(user.getGrade());
-
-        return response;
-    }*/
-
-    public LoginResponse login(LoginRequest request) {
-
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findByEmail(normalizeEmail(request.getEmail()))
+                .orElseThrow(() -> invalidCredentials());
 
         if (!bCryptPasswordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid password");
+            throw invalidCredentials();
         }
 
         String token = jwtService.generateToken(user);
@@ -116,158 +118,172 @@ public class UserService {
     }
 
     public ProfileResponse getProfile(Integer userId) {
+        UserLearningProfileProjection profile = userStatRepository.findLearningProfileByUserId(userId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        UserStat stat = userStatRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("UserStat not found"));
-
-        ProfileResponse res = new ProfileResponse();
-
-        res.setFullName(user.getFullName());
-        res.setEmail(user.getEmail());
-        res.setAvatarUrl(user.getAvatarUrl());
-        res.setGradeName(user.getGrade().getGradeName());
-        res.setRole(user.getRole().name());
-        res.setIsPremium(user.getIsPremium());
-
-        res.setTotalXp(stat.getTotalXP());
-        res.setTotalLesson(stat.getTotalLesson());
-        res.setStreakDay(stat.getStreakDay());
-
-        return res;
+        ProfileResponse response = new ProfileResponse();
+        response.setFullName(profile.getFullName());
+        response.setEmail(profile.getEmail());
+        response.setAvatarUrl(profile.getAvatarUrl());
+        response.setGradeName(profile.getGradeName());
+        response.setRole(profile.getRole());
+        response.setIsPremium(Boolean.TRUE.equals(profile.getIsPremium()));
+        response.setTotalXp(profile.getTotalXp());
+        response.setTotalLesson(profile.getTotalLesson());
+        response.setStreakDay(profile.getStreakDay());
+        return response;
     }
 
     public UserInfoResponse getUserInfo(Integer userId) {
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        UserLearningProfileProjection profile = userStatRepository.findLearningProfileByUserId(userId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
 
         return new UserInfoResponse(
-                user.getFullName(),
-                user.getEmail(),
-                user.getPhone(),
-                user.getDob(),
-                user.getAvatarUrl(),
-                user.getGrade().getGradeName(),
-                user.getRole().name(),
-                user.getIsPremium()
+                profile.getFullName(),
+                profile.getEmail(),
+                profile.getPhone(),
+                profile.getDob(),
+                profile.getAvatarUrl(),
+                profile.getGradeName(),
+                profile.getRole(),
+                Boolean.TRUE.equals(profile.getIsPremium())
         );
     }
 
     @Transactional
     public UserInfoResponse updateUserInfo(Integer userId, UpdateUserInfoRequest request) {
+        if (request == null) {
+            throw new BadRequestException("Update request must not be null");
+        }
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User không tồn tại"));
+        User user = userRepository.findWithGradeById(userId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
 
-        // ===== FULL NAME =====
         if (request.getFullName() != null) {
-            if (request.getFullName().isBlank()) {
-                throw new BadRequestException("Tên không được rỗng");
-            }
-            user.setFullName(request.getFullName().trim());
+            user.setFullName(normalizeRequiredText(request.getFullName(), "Full name"));
         } else if (user.getFullName() == null) {
-            throw new BadRequestException("Tên không được để null");
+            throw new BadRequestException("Full name must not be null");
         }
 
-        // ===== EMAIL =====
         if (request.getEmail() != null) {
-
-            String email = request.getEmail().trim();
-
-            if (!email.matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
-                throw new BadRequestException("Email không hợp lệ");
-            }
-
-            // check trùng email
-            Optional<User> existingUser = userRepository.findByEmail(email);
-            if (existingUser.isPresent() && !existingUser.get().getId().equals(userId)) {
-                throw new BadRequestException("Email đã tồn tại");
-            }
-
+            String email = normalizeEmail(request.getEmail());
+            userRepository.findByEmail(email)
+                    .filter(existingUser -> !existingUser.getId().equals(userId))
+                    .ifPresent(existingUser -> {
+                        throw new ConflictException("Email already exists");
+                    });
             user.setEmail(email);
-
         } else if (user.getEmail() == null) {
-            throw new BadRequestException("Email không được để null");
+            throw new BadRequestException("Email must not be null");
         }
 
-        // ===== PHONE =====
         if (request.getPhone() != null) {
-
-            String phone = request.getPhone().trim();
-
-            if (!phone.matches("\\d{10}")) {
-                throw new BadRequestException("Số điện thoại không hợp lệ");
-            }
-
-            user.setPhone(phone);
-
-        } else if (user.getPhone() == null) {
-            throw new BadRequestException("SĐT không được để null");
+            user.setPhone(normalizeOptionalPhone(request.getPhone()));
         }
 
-        // ===== DOB =====
         if (request.getDob() != null) {
-
-            if (request.getDob().isAfter(LocalDate.now())) {
-                throw new BadRequestException("Ngày sinh không hợp lệ");
-            }
-
-            user.setDob(request.getDob());
-
-        } else if (user.getDob() == null) {
-            throw new BadRequestException("Ngày sinh không được để null");
+            user.setDob(validateOptionalDateOfBirth(request.getDob()));
         }
 
-        // ===== GRADE =====
         if (request.getGradeId() != null) {
-
             Grade grade = gradeRepository.findById(request.getGradeId())
-                    .orElseThrow(() -> new BadRequestException("Grade không tồn tại"));
-
+                    .orElseThrow(() -> new NotFoundException("Grade not found"));
             user.setGrade(grade);
-
         } else if (user.getGrade() == null) {
-            throw new BadRequestException("Grade không được để null");
+            throw new BadRequestException("Grade must not be null");
         }
 
-        // ===== AVATAR =====
         if (request.getAvatarUrl() != null) {
-
-            if (request.getAvatarUrl().isBlank()) {
-                throw new BadRequestException("Avatar không hợp lệ");
+            String avatarUrl = request.getAvatarUrl().trim();
+            if (avatarUrl.isEmpty()) {
+                throw new BadRequestException("Avatar URL must not be blank");
             }
-
-            user.setAvatarUrl(request.getAvatarUrl());
-
-        } else if (user.getAvatarUrl() == null) {
-            throw new BadRequestException("Avatar không được để null");
+            user.setAvatarUrl(avatarUrl);
         }
 
-        // ===== UPDATE TIME =====
         user.setUpdatedAt(LocalDateTime.now());
+        User updatedUser = userRepository.save(user);
 
-        userRepository.save(user);
-
-        // ===== RETURN UPDATED DATA =====
         return new UserInfoResponse(
-                user.getFullName(),
-                user.getEmail(),
-                user.getPhone(),
-                user.getDob(),
-                user.getAvatarUrl(),
-                user.getGrade().getGradeName(),
-                user.getRole().name(),
-                user.getIsPremium()
+                updatedUser.getFullName(),
+                updatedUser.getEmail(),
+                updatedUser.getPhone(),
+                updatedUser.getDob(),
+                updatedUser.getAvatarUrl(),
+                updatedUser.getGrade().getGradeName(),
+                updatedUser.getRole().name(),
+                Boolean.TRUE.equals(updatedUser.getIsPremium())
         );
     }
 
+    @Transactional
     public void resetPassword(int userId, String newPassword) {
+        if (newPassword == null || newPassword.isBlank()) {
+            throw new BadRequestException("New password must not be blank");
+        }
+
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found"));
         user.setPassword(bCryptPasswordEncoder.encode(newPassword));
+        user.setUpdatedAt(LocalDateTime.now());
         userRepository.save(user);
+    }
+
+    private ResponseStatusException invalidCredentials() {
+        return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+    }
+
+    private String normalizeEmail(String email) {
+        String normalizedEmail = normalizeRequiredText(email, "Email").toLowerCase();
+        if (!normalizedEmail.matches(EMAIL_REGEX)) {
+            throw new BadRequestException("Invalid email format");
+        }
+        return normalizedEmail;
+    }
+
+    private String normalizeOptionalPhone(String phone) {
+        if (phone == null) {
+            return null;
+        }
+
+        String normalizedPhone = phone.trim();
+        if (normalizedPhone.isEmpty()) {
+            return null;
+        }
+
+        if (!normalizedPhone.matches(PHONE_REGEX)) {
+            throw new BadRequestException("Phone number must contain exactly 10 digits");
+        }
+        return normalizedPhone;
+    }
+
+    private String normalizePhone(String phone) {
+        String normalizedPhone = normalizeRequiredText(phone, "Phone number");
+        if (!normalizedPhone.matches(PHONE_REGEX)) {
+            throw new BadRequestException("Phone number must contain exactly 10 digits");
+        }
+        return normalizedPhone;
+    }
+
+    private LocalDate validateOptionalDateOfBirth(LocalDate dateOfBirth) {
+        if (dateOfBirth == null) {
+            return null;
+        }
+        if (dateOfBirth.isAfter(LocalDate.now())) {
+            throw new BadRequestException("Date of birth must not be in the future");
+        }
+        return dateOfBirth;
+    }
+
+    private String normalizeRequiredText(String value, String fieldName) {
+        if (value == null) {
+            throw new BadRequestException(fieldName + " must not be null");
+        }
+
+        String normalizedValue = value.trim();
+        if (normalizedValue.isEmpty()) {
+            throw new BadRequestException(fieldName + " must not be blank");
+        }
+        return normalizedValue;
     }
 }
